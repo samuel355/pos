@@ -1,0 +1,8 @@
+# Disable directory listing
+Options -Indexes
+
+# Set the default page
+DirectoryIndex login.php
+
+# Redirect common errors to index
+ErrorDocument 404 /POS/index.php
