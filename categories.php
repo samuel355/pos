@@ -1,90 +1,108 @@
 <?php
-require_once "includes/auth_check.php";
-require_once "config/db.php";
+require_once 'includes/auth_check.php';
+require_once 'config/db.php';
 
-$message = "";
+$errors = [];
+$success = '';
 
-if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["add_category"])) {
-  $name = $_POST["name"] ?? "";
-  if ($name) {
-    $stmt = $pdo->prepare("INSERT INTO categories (name) VALUES (?)");
-    $stmt->execute([$name]);
-    $message = "Category added successfully!";
-  }
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $name = trim($_POST['name'] ?? '');
+
+    if ($name === '') {
+        $errors[] = 'Category name is required.';
+    } elseif (mb_strlen($name) > 100) {
+        $errors[] = 'Category name must be 100 characters or fewer.';
+    } else {
+        $check = $pdo->prepare('SELECT id FROM categories WHERE name = ? LIMIT 1');
+        $check->execute([$name]);
+
+        if ($check->fetch()) {
+            $errors[] = 'Category already exists.';
+        } else {
+            $insert = $pdo->prepare('INSERT INTO categories (name) VALUES (?)');
+            $insert->execute([$name]);
+
+            header('Location: categories.php?created=1');
+            exit;
+        }
+    }
 }
 
-if (isset($_GET["delete"])) {
-  $id = $_GET["delete"];
-  $stmt = $pdo->prepare("DELETE FROM categories WHERE id = ?");
-  $stmt->execute([$id]);
-  $message = "Category deleted successfully!";
+if (isset($_GET['created']) && $_GET['created'] === '1') {
+    $success = 'Category created successfully.';
 }
 
-$stmt = $pdo->query("SELECT * FROM categories ORDER BY id DESC");
-$categories = $stmt->fetchAll();
+$categories = $pdo->query('SELECT id, name FROM categories ORDER BY name ASC')->fetchAll();
 ?>
 
-<?php include "includes/header.php"; ?>
-<?php include "includes/sidebar.php"; ?>
+<?php include 'includes/header.php'; ?>
+<?php include 'includes/sidebar.php'; ?>
 
-<div class="row">
-    <div class="col-12">
-        <div class="page-title-box d-sm-flex align-items-center justify-content-between">
-            <h4 class="mb-sm-0">Product Categories</h4>
-        </div>
-    </div>
+<div class="page-heading mb-3 d-flex justify-content-between align-items-center">
+    <h6 class="mb-0">Categories</h6>
 </div>
 
-<?php if ($message): ?>
-    <div class="alert alert-success"><?php echo $message; ?></div>
+<?php if ($success): ?>
+    <div class="alert alert-success"><?php echo htmlspecialchars($success); ?></div>
 <?php endif; ?>
 
-<div class="row">
+<?php if ($errors): ?>
+    <div class="alert alert-danger">
+        <?php foreach ($errors as $error): ?>
+            <div><?php echo htmlspecialchars($error); ?></div>
+        <?php endforeach; ?>
+    </div>
+<?php endif; ?>
+
+<div class="row g-4">
     <div class="col-lg-4">
         <div class="card">
-            <div class="card-header">
-                <h5 class="card-title mb-0">Add Category</h5>
-            </div>
             <div class="card-body">
-                <form method="POST">
+                <h6 class="mb-3">Add Category</h6>
+                <form method="post" action="categories.php" novalidate>
                     <div class="mb-3">
-                        <label class="form-label">Category Name</label>
-                        <input type="text" name="name" class="form-control" required placeholder="Enter category name">
+                        <label class="form-label" for="category_name">Name</label>
+                        <input
+                            id="category_name"
+                            type="text"
+                            name="name"
+                            class="form-control"
+                            maxlength="100"
+                            required
+                            value="<?php echo htmlspecialchars($_POST['name'] ?? ''); ?>"
+                        >
                     </div>
-                    <button type="submit" name="add_category" class="btn btn-primary w-100">Add Category</button>
+                    <button type="submit" class="btn btn-primary">Save Category</button>
                 </form>
             </div>
         </div>
     </div>
+
     <div class="col-lg-8">
         <div class="card">
-            <div class="card-header">
-                <h5 class="card-title mb-0">Category List</h5>
-            </div>
             <div class="card-body">
+                <h6 class="mb-3">Category List</h6>
                 <div class="table-responsive">
-                    <table class="table table-hover align-middle">
-                        <thead class="table-light">
+                    <table class="table table-striped align-middle mb-0">
+                        <thead>
                             <tr>
-                                <th>ID</th>
+                                <th style="width: 100px;">ID</th>
                                 <th>Name</th>
-                                <th>Created At</th>
-                                <th>Action</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <?php foreach ($categories as $cat): ?>
+                            <?php if (!$categories): ?>
                                 <tr>
-                                    <td><?php echo $cat["id"]; ?></td>
-                                    <td><?php echo htmlspecialchars($cat["name"]); ?></td>
-                                    <td><?php echo $cat["created_at"]; ?></td>
-                                    <td>
-                                        <a href="categories.php?delete=<?php echo $cat[
-                                          "id"
-                                        ]; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure?')">Delete</a>
-                                    </td>
+                                    <td colspan="2" class="text-muted">No categories found.</td>
                                 </tr>
-                            <?php endforeach; ?>
+                            <?php else: ?>
+                                <?php foreach ($categories as $category): ?>
+                                    <tr>
+                                        <td><?php echo (int)$category['id']; ?></td>
+                                        <td><?php echo htmlspecialchars($category['name']); ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
                         </tbody>
                     </table>
                 </div>
@@ -93,4 +111,4 @@ $categories = $stmt->fetchAll();
     </div>
 </div>
 
-<?php include "includes/footer.php"; ?>
+<?php include 'includes/footer.php'; ?>
