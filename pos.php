@@ -2,7 +2,7 @@
 require_once 'includes/auth_check.php';
 require_once 'config/db.php';
 
-$stmt = $pdo->query("SELECT * FROM categories ORDER BY name ASC");
+$stmt = $pdo->query("SELECT * FROM categories WHERE status = 'Active' ORDER BY name ASC");
 $categories = $stmt->fetchAll();
 
 $stmt = $pdo->query("
@@ -15,7 +15,7 @@ $stmt = $pdo->query("
 ");
 $products = $stmt->fetchAll();
 
-$defaultProductImage = './assets/pr-1-DpkbRlV7.png';
+$defaultProductImage = './assets/uploads/placeholder.png';
 
 function e($value) {
     return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
@@ -26,6 +26,20 @@ function productImage($path, $fallback) {
 
     if ($path === '') {
         return $fallback;
+    }
+
+    if (strpos($path, 'http://') === 0 || strpos($path, 'https://') === 0 || strpos($path, './') === 0) {
+        return $path;
+    }
+
+    return './' . ltrim($path, '/');
+}
+
+function categoryImage($path) {
+    $path = trim((string)$path);
+
+    if ($path === '') {
+        return './assets/uploads/placeholder.png';
     }
 
     if (strpos($path, 'http://') === 0 || strpos($path, 'https://') === 0 || strpos($path, './') === 0) {
@@ -263,10 +277,11 @@ function productImage($path, $fallback) {
                         </button>
 
                         <?php foreach ($categories as $category): ?>
+                            <?php $catImage = categoryImage($category['image_path'] ?? ''); ?>
                             <button class="nav-link text-reset bg-body-secondary h-22 min-w-24 rounded avatar flex-column p-3 category-filter"
                                     type="button"
                                     data-category="<?php echo (int)$category['id']; ?>">
-                                <img src="./assets/img-01-BBWp8t8E.png" class="img-fluid size-8" alt="<?php echo e($category['name']); ?>">
+                                <img src="<?php echo e($catImage); ?>" class="img-fluid size-8" alt="<?php echo e($category['name']); ?>">
                                 <span class="fw-medium fs-13 mt-2"><?php echo e($category['name']); ?></span>
                             </button>
                         <?php endforeach; ?>
@@ -579,7 +594,7 @@ function productImage($path, $fallback) {
                 <td class="ps-0">
                     <div class="d-flex align-items-center gap-3">
                         <div class="avatar size-10 bg-light rounded p-1">
-                            <img src="${escapeHtml(item.image_path)}" class="img-fluid" alt="${escapeHtml(item.name)}">
+                                                            <img src="${escapeHtml(item.image_path || './assets/uploads/placeholder.png')}" class="img-fluid" alt="${escapeHtml(item.name)}">
                         </div>
                         <div>
                             <h6 class="mb-1 fs-14 text-truncate cart-product-name">${escapeHtml(item.name)}</h6>
