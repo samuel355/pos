@@ -98,6 +98,104 @@ function productImage($path, $fallback) {
             opacity: .8;
         }
 
+        .pos-toast {
+            position: fixed;
+            top: 18px;
+            right: 18px;
+            z-index: 9999;
+            min-width: 260px;
+            max-width: 360px;
+            padding: 14px 16px;
+            border-radius: 12px;
+            color: #ffffff;
+            background: #111827;
+            box-shadow: 0 14px 35px rgba(15, 23, 42, .22);
+            display: none;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .pos-toast.show {
+            display: block;
+            animation: toastSlide .2s ease-out;
+        }
+
+        .pos-toast.success {
+            background: #16a34a;
+        }
+
+        .pos-toast.error {
+            background: #dc2626;
+        }
+
+        .receipt-modal-backdrop {
+            position: fixed;
+            inset: 0;
+            z-index: 9998;
+            background: rgba(15, 23, 42, .55);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+
+        .receipt-modal-backdrop.show {
+            display: flex;
+        }
+
+        .receipt-modal {
+            width: min(960px, 100%);
+            height: min(92vh, 900px);
+            background: #ffffff;
+            border-radius: 16px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 24px 80px rgba(15, 23, 42, .35);
+        }
+
+        .receipt-modal-header {
+            padding: 14px 18px;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .receipt-modal-header h6 {
+            margin: 0;
+            font-size: 16px;
+        }
+
+        .receipt-modal-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .receipt-modal-body {
+            flex: 1;
+            background: #f3f4f6;
+        }
+
+        .receipt-modal-body iframe {
+            width: 100%;
+            height: 100%;
+            border: 0;
+            background: #ffffff;
+        }
+
+        @keyframes toastSlide {
+            from {
+                opacity: 0;
+                transform: translateY(-8px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
         @media (max-width: 991px) {
             .product-cards,
             .pos-cart-items,
@@ -353,6 +451,28 @@ function productImage($path, $fallback) {
     </div>
 </div>
 
+<div id="posToast" class="pos-toast"></div>
+
+<div id="receiptModalBackdrop" class="receipt-modal-backdrop">
+    <div class="receipt-modal">
+        <div class="receipt-modal-header">
+            <h6 id="receiptModalTitle">Receipt Preview</h6>
+            <div class="receipt-modal-actions">
+                <button type="button" class="btn btn-primary btn-sm" id="printReceiptBtn">
+                    Print
+                </button>
+                <button type="button" class="btn btn-light border btn-sm" id="closeReceiptModalBtn">
+                    Close
+                </button>
+            </div>
+        </div>
+
+        <div class="receipt-modal-body">
+            <iframe id="receiptPreviewFrame" src="about:blank"></iframe>
+        </div>
+    </div>
+</div>
+
 <script>
     let cart = [];
     let activeCategory = 'all';
@@ -540,19 +660,75 @@ function productImage($path, $fallback) {
         }
     }
 
-    async function processCheckout() {
-        if (cart.length === 0) {
-            alert('Cart is empty.');
+    function showToast(message, type = 'success') {
+        const toast = document.getElementById('posToast');
+
+        toast.className = 'pos-toast show ' + type;
+        toast.innerText = message;
+
+        clearTimeout(window.posToastTimeout);
+        window.posToastTimeout = setTimeout(function () {
+            toast.className = 'pos-toast';
+            toast.innerText = '';
+        }, 3000);
+    }
+
+    function openReceiptModal(saleId) {
+        const modal = document.getElementById('receiptModalBackdrop');
+        const frame = document.getElementById('receiptPreviewFrame');
+        const title = document.getElementById('receiptModalTitle');
+
+        title.innerText = 'Receipt Preview - Receipt No.: ' + saleId;
+        frame.src = 'receipt.php?id=' + encodeURIComponent(saleId);
+        modal.classList.add('show');
+    }
+
+    function closeReceiptModal() {
+        const modal = document.getElementById('receiptModalBackdrop');
+        const frame = document.getElementById('receiptPreviewFrame');
+
+        modal.classList.remove('show');
+        frame.src = 'about:blank';
+    }
+
+    function printReceiptFromModal() {
+        const frame = document.getElementById('receiptPreviewFrame');
+
+        if (!frame || !frame.contentWindow) {
+            closeReceiptModal();
             return;
         }
 
-        if (!confirm('Process this payment?')) {
+        const closeAfterPrint = function () {
+            setTimeout(function () {
+                closeReceiptModal();
+            }, 300);
+        };
+
+        frame.contentWindow.onafterprint = closeAfterPrint;
+
+        frame.contentWindow.focus();
+        frame.contentWindow.print();
+
+        setTimeout(function () {
+            if (document.hasFocus()) {
+                closeReceiptModal();
+            }
+        }, 1200);
+    }
+
+
+    async function processCheckout() {
+        if (cart.length === 0) {
+            showToast('Cart is empty.', 'error');
             return;
         }
 
         const checkoutBtn = document.getElementById('checkoutBtn');
         checkoutBtn.disabled = true;
         checkoutBtn.innerText = 'Processing...';
+
+        showToast('Processing payment...', 'success');
 
         try {
             const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
@@ -572,20 +748,17 @@ function productImage($path, $fallback) {
             const result = await response.json();
 
             if (result.success) {
-                alert('Sale saved successfully. Receipt #' + result.sale_id);
-                window.open('receipt.php?id=' + result.sale_id, '_blank');
+                showToast('Payment completed. Receipt No.: ' + result.sale_id, 'success');
 
                 cart = [];
                 updateCartUI();
 
-                setTimeout(function () {
-                    window.location.reload();
-                }, 800);
+                openReceiptModal(result.sale_id);
             } else {
-                alert(result.error || 'Unable to save sale.');
+                showToast(result.error || 'Unable to save sale.', 'error');
             }
         } catch (error) {
-            alert('System error occurred while processing checkout.');
+            showToast('System error occurred while processing checkout.', 'error');
         } finally {
             checkoutBtn.disabled = false;
             checkoutBtn.innerText = 'Process Payment';
@@ -651,6 +824,21 @@ function productImage($path, $fallback) {
 
         document.getElementById('clearCartBtn').addEventListener('click', clearCart);
         document.getElementById('checkoutBtn').addEventListener('click', processCheckout);
+
+        document.getElementById('closeReceiptModalBtn').addEventListener('click', closeReceiptModal);
+        document.getElementById('printReceiptBtn').addEventListener('click', printReceiptFromModal);
+
+        document.getElementById('receiptModalBackdrop').addEventListener('click', function (event) {
+            if (event.target === this) {
+                closeReceiptModal();
+            }
+        });
+
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') {
+                closeReceiptModal();
+            }
+        });
 
         updateCartUI();
         updateClock();
