@@ -240,7 +240,10 @@ function money($amount) {
 <div class="preview-page">
     <div class="preview-header no-print">
         <h2>Receipt Preview</h2>
-        <p class="receipt-number">Receipt No.: <strong><?php echo (int)$sale_id; ?> — review before printing.</p>
+        <p class="receipt-number">
+            Receipt No.: <strong><?php echo (int)$sale_id; ?></strong>
+            <span>— review before printing.</span>
+        </p>
     </div>
 
     <div class="actions no-print">

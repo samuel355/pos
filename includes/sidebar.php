@@ -47,6 +47,17 @@ function ariaCurrent($page, $currentPage) {
                     </a>
                 </li>
 
+                <li class="nav-item">
+                    <a href="sales.php"
+                       class="nav-link <?php echo isActiveMenu('sales.php', $currentPage); ?>"
+                            <?php echo ariaCurrent('sales.php', $currentPage); ?>>
+                        <span class="icons">
+                            <i class="ri-receipt-line"></i>
+                        </span>
+                        <span class="menu-text">Sales</span>
+                    </a>
+                </li>
+
                 <li class="nav-menu-title">
                     <span>Management</span>
                 </li>
