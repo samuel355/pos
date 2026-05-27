@@ -436,6 +436,42 @@
                   visibility: visible;
               }
           }
+             .main-sidebar .nav-link.active,
+             .main-sidebar .nav-link.active:hover,
+             .main-sidebar .nav-link[aria-current="page"],
+             .main-sidebar .nav-link[aria-current="page"]:hover {
+                 color: var(--dx-primary, #ff762d) !important;
+                 background: rgba(var(--dx-primary-rgb, 255, 118, 45), .16) !important;
+                 box-shadow: inset 3px 0 0 var(--dx-primary, #ff762d) !important;
+             }
+
+          .main-sidebar .nav-link.active .icons,
+          .main-sidebar .nav-link.active:hover .icons,
+          .main-sidebar .nav-link[aria-current="page"] .icons,
+          .main-sidebar .nav-link[aria-current="page"]:hover .icons {
+              color: #ffffff !important;
+              background: var(--dx-primary, #ff762d) !important;
+              box-shadow: 0 8px 16px rgba(var(--dx-primary-rgb, 255, 118, 45), .25) !important;
+          }
+
+          .main-sidebar .nav-link.active .menu-text,
+          .main-sidebar .nav-link.active:hover .menu-text,
+          .main-sidebar .nav-link[aria-current="page"] .menu-text,
+          .main-sidebar .nav-link[aria-current="page"]:hover .menu-text {
+              color: var(--dx-primary, #ff762d) !important;
+              font-weight: 700 !important;
+          }
+
+          .main-sidebar .nav-link.active::after,
+          .main-sidebar .nav-link[aria-current="page"]::after {
+              content: "";
+              position: absolute;
+              right: 12px;
+              width: 7px;
+              height: 7px;
+              border-radius: 999px;
+              background: var(--dx-primary, #ff762d);
+          }
       </style>
   </head>
   <body>
