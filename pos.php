@@ -377,6 +377,12 @@ function categoryImage($path) {
                                     </div>
                                 <?php endforeach; ?>
                             </div>
+
+                            <div id="noProductsFound" class="text-center py-5 d-none">
+                                <img src="./assets/no-order-CCjZwO4J.svg" class="empty-order-image mb-3" alt="No products">
+                                <h6 class="mb-1">No products found</h6>
+                                <p class="text-muted mb-0">Try another search term, category, or filter.</p>
+                            </div>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -630,6 +636,8 @@ function categoryImage($path) {
 
     function applyProductFilters() {
         const items = Array.from(document.querySelectorAll('.product-item'));
+        const noProductsFound = document.getElementById('noProductsFound');
+        let visibleCount = 0;
 
         items.forEach(item => {
             const productName = item.dataset.name || '';
@@ -659,6 +667,10 @@ function categoryImage($path) {
             }
 
             item.style.display = visible ? 'block' : 'none';
+
+            if (visible) {
+                visibleCount++;
+            }
         });
 
         if (activeFilter === 'price-low' || activeFilter === 'price-high') {
@@ -672,6 +684,10 @@ function categoryImage($path) {
             });
 
             items.forEach(item => grid.appendChild(item));
+        }
+
+        if (noProductsFound) {
+            noProductsFound.classList.toggle('d-none', visibleCount > 0);
         }
     }
 
