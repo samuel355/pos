@@ -100,13 +100,35 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["add_product"])) {
         if ($name === "") {
             throw new Exception("Product name is required.");
         }
+        if (mb_strlen($name) > 150) {
+            throw new Exception("Product name must be 150 characters or fewer.");
+        }
 
+        if ($category_id <= 0) {
+            throw new Exception("Please select a category for the product.");
+        }
+        $categoryCheck = $pdo->prepare("SELECT id FROM categories WHERE id = ? LIMIT 1");
+        $categoryCheck->execute([$category_id]);
+
+        if (!$categoryCheck->fetch()) {
+            throw new Exception("Selected category does not exist.");
+        }
+
+        if (!isset($_POST["price"]) || $_POST["price"] === "" || !is_numeric($_POST["price"])) {
+            throw new Exception("Product price is required and must be a number.");
+        }
         if ($price <= 0) {
             throw new Exception("Product price must be greater than zero.");
         }
 
         if ($stock < 0) {
             throw new Exception("Stock cannot be negative.");
+        }
+        $duplicate = $pdo->prepare("SELECT id FROM products WHERE name = ? AND category_id = ? LIMIT 1");
+        $duplicate->execute([$name, $category_id]);
+
+        if ($duplicate->fetch()) {
+            throw new Exception("A product with this name already exists in the selected category.");
         }
 
         $image_path = uploadProductImage($_FILES["product_image"] ?? null);
@@ -142,12 +164,36 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["update_product"])) {
             throw new Exception("Product name is required.");
         }
 
+        if (mb_strlen($name) > 150) {
+            throw new Exception("Product name must be 150 characters or fewer.");
+        }
+        if ($category_id <= 0) {
+            throw new Exception("Please select a category for the product.");
+        }
+
+        $categoryCheck = $pdo->prepare("SELECT id FROM categories WHERE id = ? LIMIT 1");
+        $categoryCheck->execute([$category_id]);
+
+        if (!$categoryCheck->fetch()) {
+            throw new Exception("Selected category does not exist.");
+        }
+
+        if (!isset($_POST["edit_price"]) || $_POST["edit_price"] === "" || !is_numeric($_POST["edit_price"])) {
+            throw new Exception("Product price is required and must be a number.");
+        }
+
         if ($price <= 0) {
             throw new Exception("Product price must be greater than zero.");
         }
 
         if ($stock < 0) {
             throw new Exception("Stock cannot be negative.");
+        }
+        $duplicate = $pdo->prepare("SELECT id FROM products WHERE name = ? AND category_id = ? AND id <> ? LIMIT 1");
+        $duplicate->execute([$name, $category_id, $id]);
+
+        if ($duplicate->fetch()) {
+            throw new Exception("Another product with this name already exists in the selected category.");
         }
 
         $stmt = $pdo->prepare("SELECT image_path FROM products WHERE id = ?");
@@ -282,7 +328,7 @@ $products = $stmt->fetchAll();
 
                         <div class="col-md-6">
                             <label class="form-label">Category</label>
-                            <select name="category_id" class="form-control">
+                            <select name="category_id" class="form-control" required>
                                 <option value="">Select Category</option>
                                 <?php foreach ($categories as $cat): ?>
                                     <option value="<?php echo (int)$cat["id"]; ?>">
@@ -299,7 +345,7 @@ $products = $stmt->fetchAll();
 
                         <div class="col-md-4">
                             <label class="form-label">Stock Quantity</label>
-                            <input type="number" min="0" name="stock" class="form-control" value="0">
+                            <input type="number" min="0" name="stock" class="form-control" value="0" required>
                         </div>
 
                         <div class="col-md-4">
@@ -538,7 +584,7 @@ $products = $stmt->fetchAll();
 
                             <div class="col-md-6">
                                 <label class="form-label">Category</label>
-                                <select name="edit_category_id" id="editProductCategory" class="form-control">
+                                <select name="edit_category_id" id="editProductCategory" class="form-control" required>
                                     <option value="">Select Category</option>
                                     <?php foreach ($categories as $cat): ?>
                                         <option value="<?php echo (int)$cat["id"]; ?>">
@@ -555,7 +601,7 @@ $products = $stmt->fetchAll();
 
                             <div class="col-md-4">
                                 <label class="form-label">Stock Quantity</label>
-                                <input type="number" min="0" name="edit_stock" id="editProductStock" class="form-control">
+                                <input type="number" min="0" name="edit_stock" id="editProductStock" class="form-control" required>
                             </div>
 
                             <div class="col-md-4">

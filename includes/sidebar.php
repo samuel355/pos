@@ -1,11 +1,13 @@
 <?php
 $currentPage = basename($_SERVER['PHP_SELF']);
 
-function isActiveMenu($page, $currentPage) {
+function isActiveMenu($page, $currentPage)
+{
     return $page === $currentPage ? 'active' : '';
 }
 
-function ariaCurrent($page, $currentPage) {
+function ariaCurrent($page, $currentPage)
+{
     return $page === $currentPage ? 'aria-current="page"' : '';
 }
 ?>
@@ -27,8 +29,8 @@ function ariaCurrent($page, $currentPage) {
 
                 <li class="nav-item">
                     <a href="dashboard.php"
-                       class="nav-link <?php echo isActiveMenu('dashboard.php', $currentPage); ?>"
-                            <?php echo ariaCurrent('dashboard.php', $currentPage); ?>>
+                        class="nav-link <?php echo isActiveMenu('dashboard.php', $currentPage); ?>"
+                        <?php echo ariaCurrent('dashboard.php', $currentPage); ?>>
                         <span class="icons">
                             <i class="ri-dashboard-line"></i>
                         </span>
@@ -38,8 +40,8 @@ function ariaCurrent($page, $currentPage) {
 
                 <li class="nav-item">
                     <a href="pos.php"
-                       class="nav-link <?php echo isActiveMenu('pos.php', $currentPage); ?>"
-                            <?php echo ariaCurrent('pos.php', $currentPage); ?>>
+                        class="nav-link <?php echo isActiveMenu('pos.php', $currentPage); ?>"
+                        <?php echo ariaCurrent('pos.php', $currentPage); ?>>
                         <span class="icons">
                             <i class="ri-shopping-cart-2-line"></i>
                         </span>
@@ -49,8 +51,8 @@ function ariaCurrent($page, $currentPage) {
 
                 <li class="nav-item">
                     <a href="sales.php"
-                       class="nav-link <?php echo isActiveMenu('sales.php', $currentPage); ?>"
-                            <?php echo ariaCurrent('sales.php', $currentPage); ?>>
+                        class="nav-link <?php echo isActiveMenu('sales.php', $currentPage); ?>"
+                        <?php echo ariaCurrent('sales.php', $currentPage); ?>>
                         <span class="icons">
                             <i class="ri-receipt-line"></i>
                         </span>
@@ -64,8 +66,8 @@ function ariaCurrent($page, $currentPage) {
 
                 <li class="nav-item">
                     <a href="products.php"
-                       class="nav-link <?php echo isActiveMenu('products.php', $currentPage); ?>"
-                            <?php echo ariaCurrent('products.php', $currentPage); ?>>
+                        class="nav-link <?php echo isActiveMenu('products.php', $currentPage); ?>"
+                        <?php echo ariaCurrent('products.php', $currentPage); ?>>
                         <span class="icons">
                             <i class="ri-shopping-bag-line"></i>
                         </span>
@@ -75,8 +77,8 @@ function ariaCurrent($page, $currentPage) {
 
                 <li class="nav-item">
                     <a href="categories.php"
-                       class="nav-link <?php echo isActiveMenu('categories.php', $currentPage); ?>"
-                            <?php echo ariaCurrent('categories.php', $currentPage); ?>>
+                        class="nav-link <?php echo isActiveMenu('categories.php', $currentPage); ?>"
+                        <?php echo ariaCurrent('categories.php', $currentPage); ?>>
                         <span class="icons">
                             <i class="ri-list-check"></i>
                         </span>
@@ -86,8 +88,8 @@ function ariaCurrent($page, $currentPage) {
 
                 <li class="nav-item">
                     <a href="staff.php"
-                       class="nav-link <?php echo isActiveMenu('staff.php', $currentPage); ?>"
-                            <?php echo ariaCurrent('staff.php', $currentPage); ?>>
+                        class="nav-link <?php echo isActiveMenu('staff.php', $currentPage); ?>"
+                        <?php echo ariaCurrent('staff.php', $currentPage); ?>>
                         <span class="icons">
                             <i class="ri-team-line"></i>
                         </span>

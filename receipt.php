@@ -251,7 +251,7 @@ function money($amount) {
             Print Receipt
         </button>
 
-        <button type="button" class="btn btn-light" onclick="window.close()">
+        <button type="button" class="btn btn-light" onclick="closeReceipt()">
             Close
         </button>
     </div>
@@ -348,6 +348,9 @@ function money($amount) {
 <script>
     function printReceipt() {
         window.print();
+    }
+    function closeReceipt(){
+        window.location.href = 'pos.php';
     }
 </script>
 </body>

@@ -17,11 +17,13 @@ $products = $stmt->fetchAll();
 
 $defaultProductImage = './assets/uploads/placeholder.png';
 
-function e($value) {
+function e($value)
+{
     return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
 }
 
-function productImage($path, $fallback) {
+function productImage($path, $fallback)
+{
     $path = trim((string)$path);
 
     if ($path === '') {
@@ -35,7 +37,8 @@ function productImage($path, $fallback) {
     return './' . ltrim($path, '/');
 }
 
-function categoryImage($path) {
+function categoryImage($path)
+{
     $path = trim((string)$path);
 
     if ($path === '') {
@@ -51,6 +54,7 @@ function categoryImage($path) {
 ?>
 <!DOCTYPE html>
 <html lang="en" class="scroll-smooth group" data-layout="two-column" data-content-width="fluid" data-bs-theme="light" data-sidebar-colors="light" data-sidebar="large" data-nav-type="default" dir="ltr" data-colors="default">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -204,6 +208,7 @@ function categoryImage($path) {
                 opacity: 0;
                 transform: translateY(-8px);
             }
+
             to {
                 opacity: 1;
                 transform: translateY(0);
@@ -211,6 +216,7 @@ function categoryImage($path) {
         }
 
         @media (max-width: 991px) {
+
             .product-cards,
             .pos-cart-items,
             .category-wrapper {
@@ -221,381 +227,381 @@ function categoryImage($path) {
 </head>
 
 <body class="sidebar-hidden">
-<div class="container-fluid px-0">
-    <div class="row g-0 pos-wrapper">
+    <div class="container-fluid px-0">
+        <div class="row g-0 pos-wrapper">
 
-        <div class="col-lg-7 col-xl-8 col-xxl-9">
-            <div class="position-relative">
-                <header class="main-topbar start-0 position-absolute" id="main-topbar">
-                    <a href="dashboard.php" class="navbar-brand">
-                        <div class="logo-lg">
-                            <img src="./assets/main-logo-CWEU2RA-.png" loading="lazy" alt="Logo" height="20" class="mx-auto logo-dark">
-                            <img src="./assets/logo-white-B_ImY8Qx.png" loading="lazy" alt="Logo" height="20" class="mx-auto logo-light">
-                        </div>
-                    </a>
-
-                    <div class="d-none d-xl-flex align-items-center gap-2 ms-10">
-                        <div class="border py-6px px-3 rounded">
-                            <i class="bi bi-calendar2 me-2 text-primary"></i>
-                            <span id="pos-date">--</span>
-                        </div>
-                        <span>-</span>
-                        <div class="border py-6px px-3 rounded">
-                            <i class="bi bi-clock me-2 fw-semibold text-primary"></i>
-                            <span id="pos-time">--</span>
-                        </div>
-                    </div>
-
-                    <div class="d-flex align-items-center gap-3 ms-auto">
-                        <span class="py-6px ps-4 pe-6px bg-success-subtle rounded text-success d-none d-md-flex d-lg-none d-xxl-flex align-items-center">
-                            <span class="size-1-5 d-block rounded-circle bg-success me-2"></span>Open Order
-                        </span>
-
-                        <a href="dashboard.php" class="btn h-9 px-3 btn-secondary py-6px d-none d-md-inline-flex align-items-center">
-                            <i class="bi bi-globe pe-2 fs-sm"></i> Dashboard
+            <div class="col-lg-7 col-xl-8 col-xxl-9">
+                <div class="position-relative">
+                    <header class="main-topbar start-0 position-absolute" id="main-topbar">
+                        <a href="dashboard.php" class="navbar-brand">
+                            <div class="logo-lg">
+                                <img src="./assets/main-logo-CWEU2RA-.png" loading="lazy" alt="Logo" height="20" class="mx-auto logo-dark">
+                                <img src="./assets/logo-white-B_ImY8Qx.png" loading="lazy" alt="Logo" height="20" class="mx-auto logo-light">
+                            </div>
                         </a>
 
-                        <a href="products.php" class="btn btn-outline-light bg-body-secondary shadow-sm border size-8 btn-icon rounded-1" title="Products">
-                            <i class="ri-box-3-line fs-17"></i>
-                        </a>
+                        <div class="d-none d-xl-flex align-items-center gap-2 ms-10">
+                            <div class="border py-6px px-3 rounded">
+                                <i class="bi bi-calendar2 me-2 text-primary"></i>
+                                <span id="pos-date">--</span>
+                            </div>
+                            <span>-</span>
+                            <div class="border py-6px px-3 rounded">
+                                <i class="bi bi-clock me-2 fw-semibold text-primary"></i>
+                                <span id="pos-time">--</span>
+                            </div>
+                        </div>
 
-                        <a href="logout.php" class="btn btn-outline-light bg-body-secondary shadow-sm border size-8 btn-icon rounded-1" title="Logout">
-                            <i class="ri-logout-box-r-line fs-17"></i>
-                        </a>
-                    </div>
-                </header>
-            </div>
+                        <div class="d-flex align-items-center gap-3 ms-auto">
+                            <span class="py-6px ps-4 pe-6px bg-success-subtle rounded text-success d-none d-md-flex d-lg-none d-xxl-flex align-items-center">
+                                <span class="size-1-5 d-block rounded-circle bg-success me-2"></span>Open Order
+                            </span>
 
-            <div class="pos-left-side d-flex flex-wrap flex-md-nowrap">
-                <div class="p-6 border-end shadow-sm bg-body-secondary category-wrapper">
-                    <div class="nav flex-md-column nav-pills gap-4" id="pos-category-tabs" role="tablist">
-                        <button class="nav-link active text-reset bg-body-secondary h-22 min-w-24 rounded avatar flex-column p-3 category-filter"
-                                type="button"
-                                data-category="all">
-                            <img src="./assets/img-14-Bq_mg9xG.png" class="img-fluid size-8" alt="All">
-                            <span class="fw-medium fs-13 mt-2">All</span>
-                        </button>
+                            <a href="dashboard.php" class="btn h-9 px-3 btn-secondary py-6px d-none d-md-inline-flex align-items-center">
+                                <i class="bi bi-globe pe-2 fs-sm"></i> Dashboard
+                            </a>
 
-                        <?php foreach ($categories as $category): ?>
-                            <?php $catImage = categoryImage($category['image_path'] ?? ''); ?>
-                            <button class="nav-link text-reset bg-body-secondary h-22 min-w-24 rounded avatar flex-column p-3 category-filter"
-                                    type="button"
-                                    data-category="<?php echo (int)$category['id']; ?>">
-                                <img src="<?php echo e($catImage); ?>" class="img-fluid size-8" alt="<?php echo e($category['name']); ?>">
-                                <span class="fw-medium fs-13 mt-2"><?php echo e($category['name']); ?></span>
-                            </button>
-                        <?php endforeach; ?>
-                    </div>
+                            <a href="products.php" class="btn btn-outline-light bg-body-secondary shadow-sm border size-8 btn-icon rounded-1" title="Products">
+                                <i class="ri-box-3-line fs-17"></i>
+                            </a>
+
+                            <a href="logout.php" class="btn btn-outline-light bg-body-secondary shadow-sm border size-8 btn-icon rounded-1" title="Logout">
+                                <i class="ri-logout-box-r-line fs-17"></i>
+                            </a>
+                        </div>
+                    </header>
                 </div>
 
-                <div class="p-5 items-section w-100">
-                    <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-4">
-                        <div class="d-flex gap-2">
-                            <div class="dropdown">
-                                <button type="button" class="btn bg-body-secondary text-muted border" data-bs-toggle="dropdown" aria-expanded="false">
-                                    <i data-lucide="filter" class="size-4 me-1"></i>
-                                    Filter
+                <div class="pos-left-side d-flex flex-wrap flex-md-nowrap">
+                    <div class="p-6 border-end shadow-sm bg-body-secondary category-wrapper">
+                        <div class="nav flex-md-column nav-pills gap-4" id="pos-category-tabs" role="tablist">
+                            <button class="nav-link active text-reset bg-body-secondary h-22 min-w-24 rounded avatar flex-column p-3 category-filter"
+                                type="button"
+                                data-category="all">
+                                <img src="./assets/img-14-Bq_mg9xG.png" class="img-fluid size-8" alt="All">
+                                <span class="fw-medium fs-13 mt-2">All</span>
+                            </button>
+
+                            <?php foreach ($categories as $category): ?>
+                                <?php $catImage = categoryImage($category['image_path'] ?? ''); ?>
+                                <button class="nav-link text-reset bg-body-secondary h-22 min-w-24 rounded avatar flex-column p-3 category-filter"
+                                    type="button"
+                                    data-category="<?php echo (int)$category['id']; ?>">
+                                    <img src="<?php echo e($catImage); ?>" class="img-fluid size-8" alt="<?php echo e($category['name']); ?>">
+                                    <span class="fw-medium fs-13 mt-2"><?php echo e($category['name']); ?></span>
                                 </button>
-                                <ul class="dropdown-menu dropdown-menu-start">
-                                    <li><a class="dropdown-item product-filter" href="#!" data-filter="all">All Products</a></li>
-                                    <li><a class="dropdown-item product-filter" href="#!" data-filter="instock">In Stock</a></li>
-                                    <li><a class="dropdown-item product-filter" href="#!" data-filter="outofstock">Out of Stock</a></li>
-                                    <li><a class="dropdown-item product-filter" href="#!" data-filter="lowstock">Low Stock</a></li>
-                                    <li><a class="dropdown-item product-filter" href="#!" data-filter="price-low">Price: Low to High</a></li>
-                                    <li><a class="dropdown-item product-filter" href="#!" data-filter="price-high">Price: High to Low</a></li>
-                                    <li><a class="dropdown-item text-danger product-filter" href="#!" data-filter="reset">Reset Filters</a></li>
-                                </ul>
-                            </div>
-
-                            <a href="products.php" class="btn btn-primary d-none d-xl-block">Manage Products</a>
-                        </div>
-
-                        <div class="d-flex gap-2">
-                            <div class="position-relative">
-                                <input type="text" id="tableSearch" class="form-control ps-10" placeholder="Search product...">
-                                <i data-lucide="search" class="size-4 icon-dark position-absolute top-50 start-0 ms-4 translate-middle-y"></i>
-                            </div>
+                            <?php endforeach; ?>
                         </div>
                     </div>
 
-                    <div class="px-5 mx-n5 product-cards">
-                        <?php if (empty($products)): ?>
-                            <div class="alert alert-warning">
-                                No products found. Please add products from the products page.
+                    <div class="p-5 items-section w-100">
+                        <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-4">
+                            <div class="d-flex gap-2">
+                                <div class="dropdown">
+                                    <button type="button" class="btn bg-body-secondary text-muted border" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i data-lucide="filter" class="size-4 me-1"></i>
+                                        Filter
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-start">
+                                        <li><a class="dropdown-item product-filter" href="#!" data-filter="all">All Products</a></li>
+                                        <li><a class="dropdown-item product-filter" href="#!" data-filter="instock">In Stock</a></li>
+                                        <li><a class="dropdown-item product-filter" href="#!" data-filter="outofstock">Out of Stock</a></li>
+                                        <li><a class="dropdown-item product-filter" href="#!" data-filter="lowstock">Low Stock</a></li>
+                                        <li><a class="dropdown-item product-filter" href="#!" data-filter="price-low">Price: Low to High</a></li>
+                                        <li><a class="dropdown-item product-filter" href="#!" data-filter="price-high">Price: High to Low</a></li>
+                                        <li><a class="dropdown-item text-danger product-filter" href="#!" data-filter="reset">Reset Filters</a></li>
+                                    </ul>
+                                </div>
+
+                                <a href="products.php" class="btn btn-primary d-none d-xl-block">Manage Products</a>
                             </div>
-                        <?php else: ?>
-                            <div class="row g-4" id="productsGrid">
-                                <?php foreach ($products as $product): ?>
-                                    <?php
-                                    $stock = (int)$product['stock_quantity'];
-                                    $image = productImage($product['image_path'], $defaultProductImage);
-                                    ?>
-                                    <div class="col-md-6 col-xl-4 col-xxl-3 product-item"
-                                         data-id="<?php echo (int)$product['id']; ?>"
-                                         data-name="<?php echo e(strtolower($product['name'])); ?>"
-                                         data-category="<?php echo (int)$product['category_id']; ?>"
-                                         data-price="<?php echo e($product['price']); ?>"
-                                         data-stock="<?php echo $stock; ?>">
-                                        <div class="card mb-0 pos-product-card h-100">
-                                            <div class="card-body p-4 d-flex flex-column">
-                                                <div class="bg-body-tertiary bg-opacity-75 rounded">
-                                                    <img src="<?php echo e($image); ?>" class="img-fluid p-4 d-block pos-product-img" alt="<?php echo e($product['name']); ?>">
-                                                </div>
 
-                                                <div class="mt-3 d-flex flex-column flex-grow-1">
-                                                    <a href="#!" class="mb-1 d-block link link-custom fw-medium fs-16 text-truncate">
-                                                        <?php echo e($product['name']); ?>
-                                                    </a>
+                            <div class="d-flex gap-2">
+                                <div class="position-relative">
+                                    <input type="text" id="tableSearch" class="form-control ps-10" placeholder="Search product...">
+                                    <i data-lucide="search" class="size-4 icon-dark position-absolute top-50 start-0 ms-4 translate-middle-y"></i>
+                                </div>
+                            </div>
+                        </div>
 
-                                                    <p class="text-muted small mb-1">
-                                                        <?php echo e($product['category_name'] ?: 'Uncategorized'); ?>
-                                                    </p>
+                        <div class="px-5 mx-n5 product-cards">
+                            <?php if (empty($products)): ?>
+                                <div class="alert alert-warning">
+                                    No products found. Please add products from the products page.
+                                </div>
+                            <?php else: ?>
+                                <div class="row g-4" id="productsGrid">
+                                    <?php foreach ($products as $product): ?>
+                                        <?php
+                                        $stock = (int)$product['stock_quantity'];
+                                        $image = productImage($product['image_path'], $defaultProductImage);
+                                        ?>
+                                        <div class="col-md-6 col-xl-4 col-xxl-3 product-item"
+                                            data-id="<?php echo (int)$product['id']; ?>"
+                                            data-name="<?php echo e(strtolower($product['name'])); ?>"
+                                            data-category="<?php echo (int)$product['category_id']; ?>"
+                                            data-price="<?php echo e($product['price']); ?>"
+                                            data-stock="<?php echo $stock; ?>">
+                                            <div class="card mb-0 pos-product-card h-100">
+                                                <div class="card-body p-4 d-flex flex-column">
+                                                    <div class="bg-body-tertiary bg-opacity-75 rounded">
+                                                        <img src="<?php echo e($image); ?>" class="img-fluid p-4 d-block pos-product-img" alt="<?php echo e($product['name']); ?>">
+                                                    </div>
 
-                                                    <p class="<?php echo $stock > 0 ? 'text-success' : 'text-danger'; ?> small mb-2">
-                                                        Stock: <?php echo $stock; ?>
-                                                    </p>
+                                                    <div class="mt-3 d-flex flex-column flex-grow-1">
+                                                        <a href="#!" class="mb-1 d-block link link-custom fw-medium fs-16 text-truncate">
+                                                            <?php echo e($product['name']); ?>
+                                                        </a>
 
-                                                    <div class="d-flex justify-content-between align-items-end mt-auto">
-                                                        <h6 class="fs-lg mb-0">GHS <?php echo number_format((float)$product['price'], 2); ?></h6>
+                                                        <p class="text-muted small mb-1">
+                                                            <?php echo e($product['category_name'] ?: 'Uncategorized'); ?>
+                                                        </p>
 
-                                                        <button type="button"
+                                                        <p class="<?php echo $stock > 0 ? 'text-success' : 'text-danger'; ?> small mb-2">
+                                                            Stock: <?php echo $stock; ?>
+                                                        </p>
+
+                                                        <div class="d-flex justify-content-between align-items-end mt-auto">
+                                                            <h6 class="fs-lg mb-0">GHS <?php echo number_format((float)$product['price'], 2); ?></h6>
+
+                                                            <button type="button"
                                                                 class="btn btn-primary btn-icon size-9 rounded-circle add-to-cart-btn"
                                                                 <?php echo $stock <= 0 ? 'disabled' : ''; ?>
                                                                 data-product='<?php echo e(json_encode([
-                                                                        'id' => (int)$product['id'],
-                                                                        'name' => $product['name'],
-                                                                        'price' => (float)$product['price'],
-                                                                        'stock' => $stock,
-                                                                        'image_path' => $image,
-                                                                ])); ?>'>
-                                                            <i data-lucide="plus" class="size-4"></i>
-                                                        </button>
+                                                                                    'id' => (int)$product['id'],
+                                                                                    'name' => $product['name'],
+                                                                                    'price' => (float)$product['price'],
+                                                                                    'stock' => $stock,
+                                                                                    'image_path' => $image,
+                                                                                ])); ?>'>
+                                                                <i data-lucide="plus" class="size-4"></i>
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>
                                         </div>
-                                    </div>
-                                <?php endforeach; ?>
-                            </div>
+                                    <?php endforeach; ?>
+                                </div>
 
-                            <div id="noProductsFound" class="text-center py-5 d-none">
-                                <img src="./assets/no-order-CCjZwO4J.svg" class="empty-order-image mb-3" alt="No products">
-                                <h6 class="mb-1">No products found</h6>
-                                <p class="text-muted mb-0">Try another search term, category, or filter.</p>
-                            </div>
-                        <?php endif; ?>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-lg-5 col-xl-4 col-xxl-3 border-top border-top-lg-0 border-start-lg position-relative">
-            <div class="p-5 h-100 d-flex flex-column bg-body">
-                <div class="d-flex align-items-center justify-content-between gap-3 mb-4">
-                    <div>
-                        <h5 class="mb-1">Current Order</h5>
-                        <p class="text-muted mb-0">
-                            <span id="itemCount">Items: 0</span>
-                        </p>
-                    </div>
-
-                    <button type="button" id="clearCartBtn" class="btn btn-light border btn-sm">
-                        Clear
-                    </button>
-                </div>
-
-                <div class="card mb-4">
-                    <div class="card-body p-4">
-                        <div class="d-flex align-items-center gap-3">
-                            <div class="avatar size-11 bg-primary-subtle text-primary rounded-circle d-flex align-items-center justify-content-center">
-                                <i class="ri-user-line fs-lg"></i>
-                            </div>
-                            <div>
-                                <a href="#!" class="fw-medium text-reset d-block">Walk-in Customer</a>
-                                <p class="text-muted mb-0 fs-sm">Default POS customer</p>
-                            </div>
+                                <div id="noProductsFound" class="text-center py-5 d-none">
+                                    <img src="./assets/no-order-CCjZwO4J.svg" class="empty-order-image mb-3" alt="No products">
+                                    <h6 class="mb-1">No products found</h6>
+                                    <p class="text-muted mb-0">Try another search term, category, or filter.</p>
+                                </div>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>
+            </div>
 
-                <div class="table-responsive pos-cart-items">
-                    <table class="table table-borderless text-nowrap align-middle mb-0 orderTable">
-                        <tbody id="cartItems"></tbody>
-                    </table>
+            <div class="col-lg-5 col-xl-4 col-xxl-3 border-top border-top-lg-0 border-start-lg position-relative">
+                <div class="p-5 h-100 d-flex flex-column bg-body">
+                    <div class="d-flex align-items-center justify-content-between gap-3 mb-4">
+                        <div>
+                            <h5 class="mb-1">Current Order</h5>
+                            <p class="text-muted mb-0">
+                                <span id="itemCount">Items: 0</span>
+                            </p>
+                        </div>
 
-                    <div class="text-center py-5" id="emptyOrderMessage">
-                        <img src="./assets/no-order-CCjZwO4J.svg" class="empty-order-image mb-3" alt="No order">
-                        <h6 class="mb-1">No items added</h6>
-                        <p class="text-muted mb-0">Select products to start a sale.</p>
+                        <button type="button" id="clearCartBtn" class="btn btn-light border btn-sm">
+                            Clear
+                        </button>
                     </div>
+
+                    <div class="card mb-4">
+                        <div class="card-body p-4">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="avatar size-11 bg-primary-subtle text-primary rounded-circle d-flex align-items-center justify-content-center">
+                                    <i class="ri-user-line fs-lg"></i>
+                                </div>
+                                <div>
+                                    <a href="#!" class="fw-medium text-reset d-block">Walk-in Customer</a>
+                                    <p class="text-muted mb-0 fs-sm">Default POS customer</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive pos-cart-items">
+                        <table class="table table-borderless text-nowrap align-middle mb-0 orderTable">
+                            <tbody id="cartItems"></tbody>
+                        </table>
+
+                        <div class="text-center py-5" id="emptyOrderMessage">
+                            <img src="./assets/no-order-CCjZwO4J.svg" class="empty-order-image mb-3" alt="No order">
+                            <h6 class="mb-1">No items added</h6>
+                            <p class="text-muted mb-0">Select products to start a sale.</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-light bg-opacity-50 px-3 py-4 border rounded mt-4">
+                        <div class="d-flex justify-content-between mb-3">
+                            <span class="text-muted">Subtotal</span>
+                            <span class="fw-medium" id="subtotalAmount">GHS 0.00</span>
+                        </div>
+
+                        <div class="d-flex justify-content-between mb-3">
+                            <span class="text-muted">Tax</span>
+                            <span class="fw-medium" id="taxAmount">GHS 0.00</span>
+                        </div>
+
+                        <div class="d-flex justify-content-between mb-3">
+                            <span class="text-muted">Discount</span>
+                            <span class="fw-medium" id="discountAmount">GHS 0.00</span>
+                        </div>
+
+                        <hr>
+
+                        <div class="d-flex justify-content-between align-items-center fs-16">
+                            <span class="fw-semibold">Total Payable</span>
+                            <span class="fw-bold text-primary" id="totalPayableAmount">GHS 0.00</span>
+                        </div>
+                    </div>
+
+                    <div class="mt-4">
+                        <label class="form-label">Payment Method</label>
+                        <select id="paymentMethod" class="form-control">
+                            <option value="Cash">Cash</option>
+                            <option value="Card">Card</option>
+                            <option value="Mobile Money">Mobile Money</option>
+                            <option value="Bank Transfer">Bank Transfer</option>
+                        </select>
+                    </div>
+
+                    <button type="button" id="checkoutBtn" class="btn btn-primary w-100 mt-auto">
+                        Process Payment
+                    </button>
                 </div>
-
-                <div class="bg-light bg-opacity-50 px-3 py-4 border rounded mt-4">
-                    <div class="d-flex justify-content-between mb-3">
-                        <span class="text-muted">Subtotal</span>
-                        <span class="fw-medium" id="subtotalAmount">GHS 0.00</span>
-                    </div>
-
-                    <div class="d-flex justify-content-between mb-3">
-                        <span class="text-muted">Tax</span>
-                        <span class="fw-medium" id="taxAmount">GHS 0.00</span>
-                    </div>
-
-                    <div class="d-flex justify-content-between mb-3">
-                        <span class="text-muted">Discount</span>
-                        <span class="fw-medium" id="discountAmount">GHS 0.00</span>
-                    </div>
-
-                    <hr>
-
-                    <div class="d-flex justify-content-between align-items-center fs-16">
-                        <span class="fw-semibold">Total Payable</span>
-                        <span class="fw-bold text-primary" id="totalPayableAmount">GHS 0.00</span>
-                    </div>
-                </div>
-
-                <div class="mt-4">
-                    <label class="form-label">Payment Method</label>
-                    <select id="paymentMethod" class="form-control">
-                        <option value="Cash">Cash</option>
-                        <option value="Card">Card</option>
-                        <option value="Mobile Money">Mobile Money</option>
-                        <option value="Bank Transfer">Bank Transfer</option>
-                    </select>
-                </div>
-
-                <button type="button" id="checkoutBtn" class="btn btn-primary w-100 mt-auto">
-                    Process Payment
-                </button>
             </div>
         </div>
     </div>
-</div>
 
-<div id="posToast" class="pos-toast"></div>
+    <div id="posToast" class="pos-toast"></div>
 
-<div id="receiptModalBackdrop" class="receipt-modal-backdrop">
-    <div class="receipt-modal">
-        <div class="receipt-modal-header">
-            <h6 id="receiptModalTitle">Receipt Preview</h6>
-            <div class="receipt-modal-actions">
-                <button type="button" class="btn btn-primary btn-sm" id="printReceiptBtn">
-                    Print
-                </button>
-                <button type="button" class="btn btn-light border btn-sm" id="closeReceiptModalBtn">
-                    Close
-                </button>
+    <div id="receiptModalBackdrop" class="receipt-modal-backdrop">
+        <div class="receipt-modal">
+            <div class="receipt-modal-header">
+                <h6 id="receiptModalTitle">Receipt Preview</h6>
+                <div class="receipt-modal-actions">
+                    <button type="button" class="btn btn-primary btn-sm" id="printReceiptBtn">
+                        Print
+                    </button>
+                    <button type="button" class="btn btn-light border btn-sm" id="closeReceiptModalBtn">
+                        Close
+                    </button>
+                </div>
+            </div>
+
+            <div class="receipt-modal-body">
+                <iframe id="receiptPreviewFrame" src="about:blank"></iframe>
             </div>
         </div>
-
-        <div class="receipt-modal-body">
-            <iframe id="receiptPreviewFrame" src="about:blank"></iframe>
-        </div>
     </div>
-</div>
 
-<script>
-    let cart = [];
-    let activeCategory = 'all';
-    let activeFilter = 'all';
-    let searchTerm = '';
+    <script>
+        let cart = [];
+        let activeCategory = 'all';
+        let activeFilter = 'all';
+        let searchTerm = '';
 
-    function money(amount) {
-        return 'GHS ' + Number(amount || 0).toFixed(2);
-    }
+        function money(amount) {
+            return 'GHS ' + Number(amount || 0).toFixed(2);
+        }
 
-    function escapeHtml(value) {
-        return String(value)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#039;');
-    }
+        function escapeHtml(value) {
+            return String(value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
 
-    function addToCart(product) {
-        const existingItem = cart.find(item => Number(item.id) === Number(product.id));
+        function addToCart(product) {
+            const existingItem = cart.find(item => Number(item.id) === Number(product.id));
 
-        if (existingItem) {
-            if (existingItem.quantity >= existingItem.stock) {
+            if (existingItem) {
+                if (existingItem.quantity >= existingItem.stock) {
+                    alert('Not enough stock available.');
+                    return;
+                }
+
+                existingItem.quantity += 1;
+            } else {
+                if (product.stock <= 0) {
+                    alert('This product is out of stock.');
+                    return;
+                }
+
+                cart.push({
+                    id: Number(product.id),
+                    name: product.name,
+                    price: Number(product.price),
+                    stock: Number(product.stock),
+                    quantity: 1,
+                    image_path: product.image_path
+                });
+            }
+
+            updateCartUI();
+        }
+
+        function removeFromCart(index) {
+            cart.splice(index, 1);
+            updateCartUI();
+        }
+
+        function updateQuantity(index, delta) {
+            if (!cart[index]) {
+                return;
+            }
+
+            const nextQuantity = cart[index].quantity + delta;
+
+            if (nextQuantity <= 0) {
+                removeFromCart(index);
+                return;
+            }
+
+            if (nextQuantity > cart[index].stock) {
                 alert('Not enough stock available.');
                 return;
             }
 
-            existingItem.quantity += 1;
-        } else {
-            if (product.stock <= 0) {
-                alert('This product is out of stock.');
+            cart[index].quantity = nextQuantity;
+            updateCartUI();
+        }
+
+        function clearCart() {
+            if (cart.length === 0) {
                 return;
             }
 
-            cart.push({
-                id: Number(product.id),
-                name: product.name,
-                price: Number(product.price),
-                stock: Number(product.stock),
-                quantity: 1,
-                image_path: product.image_path
-            });
+            if (!confirm('Clear current order?')) {
+                return;
+            }
+
+            cart = [];
+            updateCartUI();
         }
 
-        updateCartUI();
-    }
+        function updateCartUI() {
+            const cartTbody = document.getElementById('cartItems');
+            const emptyMsg = document.getElementById('emptyOrderMessage');
 
-    function removeFromCart(index) {
-        cart.splice(index, 1);
-        updateCartUI();
-    }
+            cartTbody.innerHTML = '';
 
-    function updateQuantity(index, delta) {
-        if (!cart[index]) {
-            return;
-        }
+            let subtotal = 0;
+            let totalQty = 0;
 
-        const nextQuantity = cart[index].quantity + delta;
+            cart.forEach((item, index) => {
+                const lineTotal = item.price * item.quantity;
+                subtotal += lineTotal;
+                totalQty += item.quantity;
 
-        if (nextQuantity <= 0) {
-            removeFromCart(index);
-            return;
-        }
-
-        if (nextQuantity > cart[index].stock) {
-            alert('Not enough stock available.');
-            return;
-        }
-
-        cart[index].quantity = nextQuantity;
-        updateCartUI();
-    }
-
-    function clearCart() {
-        if (cart.length === 0) {
-            return;
-        }
-
-        if (!confirm('Clear current order?')) {
-            return;
-        }
-
-        cart = [];
-        updateCartUI();
-    }
-
-    function updateCartUI() {
-        const cartTbody = document.getElementById('cartItems');
-        const emptyMsg = document.getElementById('emptyOrderMessage');
-
-        cartTbody.innerHTML = '';
-
-        let subtotal = 0;
-        let totalQty = 0;
-
-        cart.forEach((item, index) => {
-            const lineTotal = item.price * item.quantity;
-            subtotal += lineTotal;
-            totalQty += item.quantity;
-
-            const rowHtml = `
+                const rowHtml = `
             <tr>
                 <td class="ps-0">
                     <div class="d-flex align-items-center gap-3">
@@ -622,259 +628,260 @@ function categoryImage($path) {
             </tr>
         `;
 
-            cartTbody.insertAdjacentHTML('beforeend', rowHtml);
-        });
-
-        document.getElementById('subtotalAmount').innerText = money(subtotal);
-        document.getElementById('taxAmount').innerText = money(0);
-        document.getElementById('discountAmount').innerText = money(0);
-        document.getElementById('totalPayableAmount').innerText = money(subtotal);
-        document.getElementById('itemCount').innerText = 'Items: ' + totalQty;
-
-        emptyMsg.style.display = cart.length > 0 ? 'none' : 'block';
-    }
-
-    function applyProductFilters() {
-        const items = Array.from(document.querySelectorAll('.product-item'));
-        const noProductsFound = document.getElementById('noProductsFound');
-        let visibleCount = 0;
-
-        items.forEach(item => {
-            const productName = item.dataset.name || '';
-            const productCategory = item.dataset.category || '';
-            const productStock = Number(item.dataset.stock || 0);
-
-            let visible = true;
-
-            if (activeCategory !== 'all' && productCategory !== activeCategory) {
-                visible = false;
-            }
-
-            if (searchTerm !== '' && productName.indexOf(searchTerm) === -1) {
-                visible = false;
-            }
-
-            if (activeFilter === 'instock' && productStock <= 0) {
-                visible = false;
-            }
-
-            if (activeFilter === 'outofstock' && productStock > 0) {
-                visible = false;
-            }
-
-            if (activeFilter === 'lowstock' && !(productStock > 0 && productStock <= 5)) {
-                visible = false;
-            }
-
-            item.style.display = visible ? 'block' : 'none';
-
-            if (visible) {
-                visibleCount++;
-            }
-        });
-
-        if (activeFilter === 'price-low' || activeFilter === 'price-high') {
-            const grid = document.getElementById('productsGrid');
-
-            items.sort((a, b) => {
-                const aPrice = Number(a.dataset.price || 0);
-                const bPrice = Number(b.dataset.price || 0);
-
-                return activeFilter === 'price-low' ? aPrice - bPrice : bPrice - aPrice;
+                cartTbody.insertAdjacentHTML('beforeend', rowHtml);
             });
 
-            items.forEach(item => grid.appendChild(item));
+            document.getElementById('subtotalAmount').innerText = money(subtotal);
+            document.getElementById('taxAmount').innerText = money(0);
+            document.getElementById('discountAmount').innerText = money(0);
+            document.getElementById('totalPayableAmount').innerText = money(subtotal);
+            document.getElementById('itemCount').innerText = 'Items: ' + totalQty;
+
+            emptyMsg.style.display = cart.length > 0 ? 'none' : 'block';
         }
 
-        if (noProductsFound) {
-            noProductsFound.classList.toggle('d-none', visibleCount > 0);
-        }
-    }
+        function applyProductFilters() {
+            const items = Array.from(document.querySelectorAll('.product-item'));
+            const noProductsFound = document.getElementById('noProductsFound');
+            let visibleCount = 0;
 
-    function showToast(message, type = 'success') {
-        const toast = document.getElementById('posToast');
+            items.forEach(item => {
+                const productName = item.dataset.name || '';
+                const productCategory = item.dataset.category || '';
+                const productStock = Number(item.dataset.stock || 0);
 
-        toast.className = 'pos-toast show ' + type;
-        toast.innerText = message;
+                let visible = true;
 
-        clearTimeout(window.posToastTimeout);
-        window.posToastTimeout = setTimeout(function () {
-            toast.className = 'pos-toast';
-            toast.innerText = '';
-        }, 3000);
-    }
-
-    function openReceiptModal(saleId) {
-        const modal = document.getElementById('receiptModalBackdrop');
-        const frame = document.getElementById('receiptPreviewFrame');
-        const title = document.getElementById('receiptModalTitle');
-
-        title.innerText = 'Receipt Preview - Receipt No.: ' + saleId;
-        frame.src = 'receipt.php?id=' + encodeURIComponent(saleId);
-        modal.classList.add('show');
-    }
-
-    function closeReceiptModal() {
-        const modal = document.getElementById('receiptModalBackdrop');
-        const frame = document.getElementById('receiptPreviewFrame');
-
-        modal.classList.remove('show');
-        frame.src = 'about:blank';
-    }
-
-    function printReceiptFromModal() {
-        const frame = document.getElementById('receiptPreviewFrame');
-
-        if (!frame || !frame.contentWindow) {
-            closeReceiptModal();
-            return;
-        }
-
-        const closeAfterPrint = function () {
-            setTimeout(function () {
-                closeReceiptModal();
-            }, 300);
-        };
-
-        frame.contentWindow.onafterprint = closeAfterPrint;
-
-        frame.contentWindow.focus();
-        frame.contentWindow.print();
-
-        setTimeout(function () {
-            if (document.hasFocus()) {
-                closeReceiptModal();
-            }
-        }, 1200);
-    }
-
-
-    async function processCheckout() {
-        if (cart.length === 0) {
-            showToast('Cart is empty.', 'error');
-            return;
-        }
-
-        const checkoutBtn = document.getElementById('checkoutBtn');
-        checkoutBtn.disabled = true;
-        checkoutBtn.innerText = 'Processing...';
-
-        showToast('Processing payment...', 'success');
-
-        try {
-            const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-
-            const response = await fetch('api/save_sale.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    items: cart,
-                    total: total,
-                    payment_method: document.getElementById('paymentMethod').value
-                })
-            });
-
-            const result = await response.json();
-
-            if (result.success) {
-                showToast('Payment completed. Receipt No.: ' + result.sale_id, 'success');
-
-                cart = [];
-                updateCartUI();
-
-                openReceiptModal(result.sale_id);
-            } else {
-                showToast(result.error || 'Unable to save sale.', 'error');
-            }
-        } catch (error) {
-            showToast('System error occurred while processing checkout.', 'error');
-        } finally {
-            checkoutBtn.disabled = false;
-            checkoutBtn.innerText = 'Process Payment';
-        }
-    }
-
-    function updateClock() {
-        const now = new Date();
-
-        const dateEl = document.getElementById('pos-date');
-        const timeEl = document.getElementById('pos-time');
-
-        if (dateEl) {
-            dateEl.innerText = now.toLocaleDateString();
-        }
-
-        if (timeEl) {
-            timeEl.innerText = now.toLocaleTimeString();
-        }
-    }
-
-    document.addEventListener('DOMContentLoaded', function () {
-        document.querySelectorAll('.add-to-cart-btn').forEach(button => {
-            button.addEventListener('click', function () {
-                addToCart(JSON.parse(this.dataset.product));
-            });
-        });
-
-        document.querySelectorAll('.category-filter').forEach(button => {
-            button.addEventListener('click', function () {
-                document.querySelectorAll('.category-filter').forEach(btn => btn.classList.remove('active'));
-                this.classList.add('active');
-
-                activeCategory = this.dataset.category;
-                applyProductFilters();
-            });
-        });
-
-        document.querySelectorAll('.product-filter').forEach(link => {
-            link.addEventListener('click', function (event) {
-                event.preventDefault();
-
-                activeFilter = this.dataset.filter;
-
-                if (activeFilter === 'reset') {
-                    activeFilter = 'all';
-                    activeCategory = 'all';
-                    searchTerm = '';
-                    document.getElementById('tableSearch').value = '';
-
-                    document.querySelectorAll('.category-filter').forEach(btn => btn.classList.remove('active'));
-                    document.querySelector('.category-filter[data-category="all"]').classList.add('active');
+                if (activeCategory !== 'all' && productCategory !== activeCategory) {
+                    visible = false;
                 }
 
+                if (searchTerm !== '' && productName.indexOf(searchTerm) === -1) {
+                    visible = false;
+                }
+
+                if (activeFilter === 'instock' && productStock <= 0) {
+                    visible = false;
+                }
+
+                if (activeFilter === 'outofstock' && productStock > 0) {
+                    visible = false;
+                }
+
+                if (activeFilter === 'lowstock' && !(productStock > 0 && productStock <= 5)) {
+                    visible = false;
+                }
+
+                item.style.display = visible ? 'block' : 'none';
+
+                if (visible) {
+                    visibleCount++;
+                }
+            });
+
+            if (activeFilter === 'price-low' || activeFilter === 'price-high') {
+                const grid = document.getElementById('productsGrid');
+
+                items.sort((a, b) => {
+                    const aPrice = Number(a.dataset.price || 0);
+                    const bPrice = Number(b.dataset.price || 0);
+
+                    return activeFilter === 'price-low' ? aPrice - bPrice : bPrice - aPrice;
+                });
+
+                items.forEach(item => grid.appendChild(item));
+            }
+
+            if (noProductsFound) {
+                noProductsFound.classList.toggle('d-none', visibleCount > 0);
+            }
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('posToast');
+
+            toast.className = 'pos-toast show ' + type;
+            toast.innerText = message;
+
+            clearTimeout(window.posToastTimeout);
+            window.posToastTimeout = setTimeout(function() {
+                toast.className = 'pos-toast';
+                toast.innerText = '';
+            }, 3000);
+        }
+
+        function openReceiptModal(saleId) {
+            const modal = document.getElementById('receiptModalBackdrop');
+            const frame = document.getElementById('receiptPreviewFrame');
+            const title = document.getElementById('receiptModalTitle');
+
+            title.innerText = 'Receipt Preview - Receipt No.: ' + saleId;
+            frame.src = 'receipt.php?id=' + encodeURIComponent(saleId);
+            modal.classList.add('show');
+        }
+
+        function closeReceiptModal() {
+            const modal = document.getElementById('receiptModalBackdrop');
+            const frame = document.getElementById('receiptPreviewFrame');
+
+            modal.classList.remove('show');
+            frame.src = 'about:blank';
+        }
+
+        function printReceiptFromModal() {
+            const frame = document.getElementById('receiptPreviewFrame');
+
+            if (!frame || !frame.contentWindow) {
+                closeReceiptModal();
+                return;
+            }
+
+            const closeAfterPrint = function() {
+                setTimeout(function() {
+                    closeReceiptModal();
+                }, 300);
+            };
+
+            frame.contentWindow.onafterprint = closeAfterPrint;
+
+            frame.contentWindow.focus();
+            frame.contentWindow.print();
+
+            setTimeout(function() {
+                if (document.hasFocus()) {
+                    closeReceiptModal();
+                }
+            }, 1200);
+        }
+
+
+        async function processCheckout() {
+            if (cart.length === 0) {
+                showToast('Cart is empty.', 'error');
+                return;
+            }
+
+            const checkoutBtn = document.getElementById('checkoutBtn');
+            checkoutBtn.disabled = true;
+            checkoutBtn.innerText = 'Processing...';
+
+            showToast('Processing payment...', 'success');
+
+            try {
+                const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+                const response = await fetch('api/save_sale.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        items: cart,
+                        total: total,
+                        payment_method: document.getElementById('paymentMethod').value
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    showToast('Payment completed. Receipt No.: ' + result.sale_id, 'success');
+
+                    cart = [];
+                    updateCartUI();
+
+                    openReceiptModal(result.sale_id);
+                } else {
+                    showToast(result.error || 'Unable to save sale.', 'error');
+                }
+            } catch (error) {
+                showToast('System error occurred while processing checkout.', 'error');
+            } finally {
+                checkoutBtn.disabled = false;
+                checkoutBtn.innerText = 'Process Payment';
+            }
+        }
+
+        function updateClock() {
+            const now = new Date();
+
+            const dateEl = document.getElementById('pos-date');
+            const timeEl = document.getElementById('pos-time');
+
+            if (dateEl) {
+                dateEl.innerText = now.toLocaleDateString();
+            }
+
+            if (timeEl) {
+                timeEl.innerText = now.toLocaleTimeString();
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('.add-to-cart-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    addToCart(JSON.parse(this.dataset.product));
+                });
+            });
+
+            document.querySelectorAll('.category-filter').forEach(button => {
+                button.addEventListener('click', function() {
+                    document.querySelectorAll('.category-filter').forEach(btn => btn.classList.remove('active'));
+                    this.classList.add('active');
+
+                    activeCategory = this.dataset.category;
+                    applyProductFilters();
+                });
+            });
+
+            document.querySelectorAll('.product-filter').forEach(link => {
+                link.addEventListener('click', function(event) {
+                    event.preventDefault();
+
+                    activeFilter = this.dataset.filter;
+
+                    if (activeFilter === 'reset') {
+                        activeFilter = 'all';
+                        activeCategory = 'all';
+                        searchTerm = '';
+                        document.getElementById('tableSearch').value = '';
+
+                        document.querySelectorAll('.category-filter').forEach(btn => btn.classList.remove('active'));
+                        document.querySelector('.category-filter[data-category="all"]').classList.add('active');
+                    }
+
+                    applyProductFilters();
+                });
+            });
+
+            document.getElementById('tableSearch').addEventListener('input', function() {
+                searchTerm = this.value.toLowerCase().trim();
                 applyProductFilters();
             });
+
+            document.getElementById('clearCartBtn').addEventListener('click', clearCart);
+            document.getElementById('checkoutBtn').addEventListener('click', processCheckout);
+
+            document.getElementById('closeReceiptModalBtn').addEventListener('click', closeReceiptModal);
+            document.getElementById('printReceiptBtn').addEventListener('click', printReceiptFromModal);
+
+            document.getElementById('receiptModalBackdrop').addEventListener('click', function(event) {
+                if (event.target === this) {
+                    closeReceiptModal();
+                }
+            });
+
+            document.addEventListener('keydown', function(event) {
+                if (event.key === 'Escape') {
+                    closeReceiptModal();
+                }
+            });
+
+            updateCartUI();
+            updateClock();
+            setInterval(updateClock, 1000);
         });
-
-        document.getElementById('tableSearch').addEventListener('input', function () {
-            searchTerm = this.value.toLowerCase().trim();
-            applyProductFilters();
-        });
-
-        document.getElementById('clearCartBtn').addEventListener('click', clearCart);
-        document.getElementById('checkoutBtn').addEventListener('click', processCheckout);
-
-        document.getElementById('closeReceiptModalBtn').addEventListener('click', closeReceiptModal);
-        document.getElementById('printReceiptBtn').addEventListener('click', printReceiptFromModal);
-
-        document.getElementById('receiptModalBackdrop').addEventListener('click', function (event) {
-            if (event.target === this) {
-                closeReceiptModal();
-            }
-        });
-
-        document.addEventListener('keydown', function (event) {
-            if (event.key === 'Escape') {
-                closeReceiptModal();
-            }
-        });
-
-        updateCartUI();
-        updateClock();
-        setInterval(updateClock, 1000);
-    });
-</script>
+    </script>
 </body>
+
 </html>

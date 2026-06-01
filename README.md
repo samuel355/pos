@@ -1,1 +1,3 @@
 # pos
+admin
+password
