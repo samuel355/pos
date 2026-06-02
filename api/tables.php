@@ -131,16 +131,24 @@ try {
             throw new Exception('Invalid table ID.');
         }
 
+        $check = $pdo->prepare('SELECT status FROM restaurant_tables WHERE id = ?');
+        $check->execute([$tableId]);
+        $table = $check->fetch();
+
+        if (!$table) {
+            throw new Exception('Table not found.');
+        }
+
+        if (strcasecmp((string)$table['status'], 'Active') !== 0) {
+            throw new Exception('Table is inactive.');
+        }
+
         $stmt = $pdo->prepare("
             UPDATE restaurant_tables
             SET serving_user_id = ?, serve_status = 'serving'
-            WHERE id = ? AND status = 'Active'
+            WHERE id = ?
         ");
         $stmt->execute([$userId, $tableId]);
-
-        if ($stmt->rowCount() === 0) {
-            throw new Exception('Table not found or inactive.');
-        }
 
         echo json_encode([
             'success' => true,

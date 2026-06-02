@@ -1000,7 +1000,9 @@ function categoryImage($path)
             username: <?php echo json_encode($currentUsername); ?>
         };
     </script>
-    <script src="./assets/js/pos-page.js"></script>
+    <script src="./assets/js/pos-page.js?v=<?php echo (int) @filemtime(
+      __DIR__ . "/assets/js/pos-page.js",
+    ); ?>"></script>
 </body>
 
 </html>

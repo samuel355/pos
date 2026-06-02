@@ -292,6 +292,20 @@ function canFinishService(table) {
     return isServingState && Number(table.serving_user_id) === POS_USER_ID;
 }
 
+function isCurrentUserServing(table) {
+    if (!table) {
+        return false;
+    }
+
+    if (Number(table.serving_user_id) === POS_USER_ID) {
+        return true;
+    }
+
+    const serverName = String(table.serving_username || '').trim().toLowerCase();
+    const currentName = String(POS_USERNAME || '').trim().toLowerCase();
+    return serverName !== '' && currentName !== '' && serverName === currentName;
+}
+
 function getSelectedTableRecord() {
     if (!selectedTableId) {
         return null;
@@ -647,34 +661,10 @@ async function handleServeAction(tableId) {
         return;
     }
 
-    if (table.serve_status === 'none') {
-        const ok = await tableAction('serve', tableId);
-        if (ok) {
-            setSelectedTable(tableId, table.name);
-            closeTablesModal();
-        }
-        return;
-    }
-
-    if (table.serve_status === 'serving') {
-        if (!confirm('This table is already being served by ' + (table.serving_username || 'another staff member') + '. Take over?')) {
-            return;
-        }
-
-        const ok = await tableAction('serve', tableId);
-        if (ok) {
-            setSelectedTable(tableId, table.name);
-            closeTablesModal();
-        }
-        return;
-    }
-
-    if (table.serve_status === 'ready') {
-        const ok = await tableAction('serve', tableId);
-        if (ok) {
-            setSelectedTable(tableId, table.name);
-            closeTablesModal();
-        }
+    const ok = await tableAction('serve', tableId);
+    if (ok) {
+        setSelectedTable(tableId, table.name);
+        closeTablesModal();
     }
 }
 
@@ -703,6 +693,9 @@ async function confirmReserveTable() {
 
     const ok = await tableAction('reserve', tableId, { reserved_by: reservedBy });
     if (ok) {
+        const table = allTables.find(item => Number(item.id) === tableId);
+        const tableName = table ? table.name : document.getElementById('reserveModalTableName').innerText;
+        setSelectedTable(tableId, tableName);
         closeReserveModal();
     }
 }
