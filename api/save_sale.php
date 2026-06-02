@@ -25,6 +25,9 @@ if (!is_array($data)) {
 
 $items = isset($data['items']) && is_array($data['items']) ? $data['items'] : [];
 $paymentMethod = isset($data['payment_method']) ? trim((string)$data['payment_method']) : 'Cash';
+$tableId = isset($data['table_id']) && $data['table_id'] !== '' && $data['table_id'] !== null
+    ? (int)$data['table_id']
+    : null;
 
 if (empty($items)) {
     echo json_encode([
@@ -89,19 +92,37 @@ try {
         throw new Exception('Sale total must be greater than zero.');
     }
 
+    if ($tableId !== null) {
+        if ($tableId <= 0) {
+            $tableId = null;
+        } else {
+            $tableCheck = $pdo->prepare("
+                SELECT id FROM restaurant_tables
+                WHERE id = ? AND status = 'Active'
+                LIMIT 1
+            ");
+            $tableCheck->execute([$tableId]);
+
+            if (!$tableCheck->fetch()) {
+                throw new Exception('Selected table is not available.');
+            }
+        }
+    }
+
     $discount = 0;
     $tax = 0;
     $finalAmount = $calculatedTotal + $tax - $discount;
 
     $saleStmt = $pdo->prepare("
         INSERT INTO sales 
-            (user_id, total_amount, discount, tax, final_amount, payment_method)
+            (user_id, table_id, total_amount, discount, tax, final_amount, payment_method)
         VALUES 
-            (?, ?, ?, ?, ?, ?)
+            (?, ?, ?, ?, ?, ?, ?)
     ");
 
     $saleStmt->execute([
         (int)$_SESSION['user_id'],
+        $tableId,
         $calculatedTotal,
         $discount,
         $tax,

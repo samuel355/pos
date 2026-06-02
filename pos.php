@@ -1,13 +1,13 @@
 <?php
-require_once 'includes/auth_check.php';
-require_once 'config/db.php';
+require_once "includes/auth_check.php";
+require_once "config/db.php";
 
 $stmt = $pdo->query("SELECT * FROM categories WHERE status = 'Active' ORDER BY name ASC");
 $categories = $stmt->fetchAll();
 
 $stmt = $pdo->query("
-    SELECT 
-        p.*, 
+    SELECT
+        p.*,
         c.name AS category_name
     FROM products p
     LEFT JOIN categories c ON p.category_id = c.id
@@ -15,41 +15,56 @@ $stmt = $pdo->query("
 ");
 $products = $stmt->fetchAll();
 
-$defaultProductImage = './assets/uploads/placeholder.png';
+$tables = [];
+try {
+  $stmt = $pdo->query("
+    SELECT id, name, status
+    FROM restaurant_tables
+        WHERE status = 'Active'
+        ORDER BY id ASC
+    ");
+  $tables = $stmt->fetchAll();
+} catch (PDOException $e) {
+  $tables = [];
+}
+
+$isAdmin = isset($_SESSION["role"]) && $_SESSION["role"] === "admin";
+$currentUserId = (int) $_SESSION["user_id"];
+$currentUsername = $_SESSION["username"] ?? "Staff";
+$defaultProductImage = "./assets/uploads/placeholder.png";
 
 function e($value)
 {
-    return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
+  return htmlspecialchars((string) $value, ENT_QUOTES, "UTF-8");
+}
+
+function normalizeAssetPath($path, $fallback = "")
+{
+  $path = trim((string) $path);
+
+  if ($path === "") {
+    return $fallback;
+  }
+
+  if (
+    strpos($path, "http://") === 0 ||
+    strpos($path, "https://") === 0 ||
+    strpos($path, "./") === 0
+  ) {
+    return $path;
+  }
+
+  return "./" . ltrim($path, "/");
 }
 
 function productImage($path, $fallback)
 {
-    $path = trim((string)$path);
-
-    if ($path === '') {
-        return $fallback;
-    }
-
-    if (strpos($path, 'http://') === 0 || strpos($path, 'https://') === 0 || strpos($path, './') === 0) {
-        return $path;
-    }
-
-    return './' . ltrim($path, '/');
+  return normalizeAssetPath($path, $fallback);
 }
 
 function categoryImage($path)
 {
-    $path = trim((string)$path);
-
-    if ($path === '') {
-        return './assets/uploads/placeholder.png';
-    }
-
-    if (strpos($path, 'http://') === 0 || strpos($path, 'https://') === 0 || strpos($path, './') === 0) {
-        return $path;
-    }
-
-    return './' . ltrim($path, '/');
+  return normalizeAssetPath($path, "./assets/uploads/placeholder.png");
 }
 ?>
 <!DOCTYPE html>
@@ -223,6 +238,267 @@ function categoryImage($path)
                 max-height: none;
             }
         }
+
+        .table-card {
+            position: relative;
+            cursor: pointer;
+            transition: all .3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            border: none;
+            border-radius: 16px;
+            overflow: hidden;
+            background: #ffffff;
+            box-shadow: 0 2px 8px rgba(15, 23, 42, .08);
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .table-card::before {
+            content: '';
+            position: absolute;
+            inset: 0 auto auto 0;
+            width: 100%;
+            height: 5px;
+            background: #22c55e;
+            transition: height .3s ease;
+        }
+
+        .table-card:hover {
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: 0 20px 48px rgba(15, 23, 42, .15);
+        }
+
+        .table-card:hover::before {
+            height: 6px;
+        }
+
+        .table-card.selected {
+            border: 2px solid #6366f1;
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, .1), 0 20px 48px rgba(99, 102, 241, .2);
+        }
+
+        .table-card.state-reserved::before { background: linear-gradient(90deg, #a855f7, #d946ef); }
+        .table-card.state-serving::before { background: linear-gradient(90deg, #3b82f6, #2563eb); }
+        .table-card.state-ready::before { background: linear-gradient(90deg, #f59e0b, #d97706); }
+        .table-card.state-occupied::before { background: linear-gradient(90deg, #f97316, #ea580c); }
+
+        .table-card.state-reserved { background: linear-gradient(135deg, rgba(168, 85, 247, 0.05) 0%, rgba(217, 70, 239, 0.03) 100%); }
+        .table-card.state-serving { background: linear-gradient(135deg, rgba(59, 130, 246, 0.05) 0%, rgba(37, 99, 235, 0.03) 100%); }
+        .table-card.state-ready { background: linear-gradient(135deg, rgba(245, 158, 11, 0.05) 0%, rgba(217, 119, 6, 0.03) 100%); }
+        .table-card.state-occupied { background: linear-gradient(135deg, rgba(249, 115, 22, 0.05) 0%, rgba(234, 88, 12, 0.03) 100%); }
+
+        .table-card-icon {
+            width: 56px;
+            height: 56px;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            background: rgba(99, 102, 241, .12);
+            color: #6366f1;
+            transition: all .3s ease;
+        }
+
+        .table-card:hover .table-card-icon {
+            transform: scale(1.1) rotate(5deg);
+            background: rgba(99, 102, 241, .18);
+        }
+
+        .table-card.state-reserved .table-card-icon { background: rgba(168, 85, 247, .15); color: #a855f7; }
+        .table-card.state-serving .table-card-icon { background: rgba(59, 130, 246, .15); color: #3b82f6; }
+        .table-card.state-ready .table-card-icon { background: rgba(245, 158, 11, .15); color: #f59e0b; }
+        .table-card.state-occupied .table-card-icon { background: rgba(249, 115, 22, .15); color: #f97316; }
+
+        .table-status-pill {
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: .05em;
+            text-transform: uppercase;
+            padding: 6px 12px;
+            border-radius: 12px;
+            backdrop-filter: blur(8px);
+            transition: all .3s ease;
+        }
+
+        .table-status-pill.free { background: rgba(34, 197, 94, 0.15); color: #16a34a; }
+        .table-status-pill.reserved { background: rgba(168, 85, 247, 0.15); color: #a855f7; }
+        .table-status-pill.serving { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
+        .table-status-pill.ready { background: rgba(245, 158, 11, 0.15); color: #f59e0b; animation: readyPulse 1.6s ease-in-out infinite; }
+        .table-status-pill.occupied { background: rgba(249, 115, 22, 0.15); color: #f97316; }
+
+        .table-card:hover .table-status-pill {
+            transform: scale(1.05);
+        }
+
+        @keyframes readyPulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, .35); }
+            50% { box-shadow: 0 0 0 6px rgba(245, 158, 11, 0); }
+        }
+
+        .table-card-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: auto;
+            padding-top: 12px;
+        }
+
+        .table-card-actions .btn {
+            flex: 1;
+            font-size: 12px;
+            font-weight: 600;
+            border-radius: 10px;
+            padding: 8px 12px;
+            transition: all .2s ease;
+            border: none;
+        }
+
+        .table-card-actions .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, .15);
+        }
+
+        .table-meta-line {
+            font-size: 12px;
+            color: #64748b;
+            margin-bottom: 6px;
+            font-weight: 500;
+        }
+
+        .tables-modal-backdrop {
+            position: fixed;
+            inset: 0;
+            z-index: 9990;
+            background: rgba(15, 23, 42, .65);
+            backdrop-filter: blur(8px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .tables-modal-backdrop.show {
+            display: flex;
+        }
+
+        .tables-modal {
+            width: min(1040px, 100%);
+            max-height: 92vh;
+            background: #ffffff;
+            border-radius: 24px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 40px 100px rgba(15, 23, 42, .25);
+        }
+
+        .tables-modal-hero {
+            padding: 22px 24px 18px;
+            background: linear-gradient(135deg, #312e81 0%, #6366f1 55%, #818cf8 100%);
+            color: #fff;
+        }
+
+        .tables-modal-hero h5 {
+            margin: 0;
+            font-weight: 700;
+        }
+
+        .tables-modal-toolbar {
+            padding: 16px 24px;
+            background: #fff;
+            border-bottom: 1px solid #e8edf3;
+        }
+
+        .tables-filter-chip {
+            border: 1px solid #e2e8f0;
+            background: #fff;
+            color: #475569;
+            border-radius: 999px;
+            padding: 6px 14px;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all .15s ease;
+        }
+
+        .tables-filter-chip.active,
+        .tables-filter-chip:hover {
+            background: #6366f1;
+            border-color: #6366f1;
+            color: #fff;
+        }
+
+        .tables-modal-body {
+            overflow-y: auto;
+            max-height: calc(92vh - 220px);
+            padding: 28px 24px 32px;
+        }
+
+        #tablesGrid {
+            row-gap: 8px !important;
+            column-gap: 12px !important;
+        }
+
+        #tablesGrid > div {
+            margin-bottom: 0 !important;
+        }
+
+        .table-orders-panel {
+            max-height: 180px;
+            overflow-y: auto;
+        }
+
+        .selected-table-badge {
+            background: linear-gradient(135deg, rgba(99, 102, 241, .14), rgba(99, 102, 241, .04));
+            border: 1px solid rgba(99, 102, 241, .25);
+        }
+
+        .serving-indicator {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 14px;
+            border-radius: 999px;
+            background: linear-gradient(135deg, #dbeafe, #eff6ff);
+            border: 1px solid #93c5fd;
+            color: #1e40af;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .serving-indicator.show {
+            display: inline-flex;
+        }
+
+        .serving-indicator.ready {
+            background: linear-gradient(135deg, #fef3c7, #fffbeb);
+            border-color: #fcd34d;
+            color: #b45309;
+        }
+
+        .serving-indicator-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #2563eb;
+            animation: serveBlink 1.4s ease-in-out infinite;
+        }
+
+        .serving-indicator.ready .serving-indicator-dot {
+            background: #f59e0b;
+        }
+
+        @keyframes serveBlink {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: .45; transform: scale(.85); }
+        }
+
+        .reserve-modal {
+            width: min(420px, 100%);
+            background: #fff;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 24px 70px rgba(15, 23, 42, .3);
+        }
     </style>
 </head>
 
@@ -253,6 +529,11 @@ function categoryImage($path)
                         </div>
 
                         <div class="d-flex align-items-center gap-3 ms-auto">
+                            <div id="servingIndicator" class="serving-indicator">
+                                <span class="serving-indicator-dot"></span>
+                                <span id="servingIndicatorText">Serving —</span>
+                            </div>
+
                             <span class="py-6px ps-4 pe-6px bg-success-subtle rounded text-success d-none d-md-flex d-lg-none d-xxl-flex align-items-center">
                                 <span class="size-1-5 d-block rounded-circle bg-success me-2"></span>Open Order
                             </span>
@@ -283,12 +564,18 @@ function categoryImage($path)
                             </button>
 
                             <?php foreach ($categories as $category): ?>
-                                <?php $catImage = categoryImage($category['image_path'] ?? ''); ?>
+                                <?php $catImage = categoryImage($category["image_path"] ?? ""); ?>
                                 <button class="nav-link text-reset bg-body-secondary h-22 min-w-24 rounded avatar flex-column p-3 category-filter"
                                     type="button"
-                                    data-category="<?php echo (int)$category['id']; ?>">
-                                    <img src="<?php echo e($catImage); ?>" class="img-fluid size-8" alt="<?php echo e($category['name']); ?>">
-                                    <span class="fw-medium fs-13 mt-2"><?php echo e($category['name']); ?></span>
+                                    data-category="<?php echo (int) $category["id"]; ?>">
+                                    <img src="<?php echo e(
+                                      $catImage,
+                                    ); ?>" class="img-fluid size-8" alt="<?php echo e(
+  $category["name"],
+); ?>">
+                                    <span class="fw-medium fs-13 mt-2"><?php echo e(
+                                      $category["name"],
+                                    ); ?></span>
                                 </button>
                             <?php endforeach; ?>
                         </div>
@@ -313,12 +600,15 @@ function categoryImage($path)
                                     </ul>
                                 </div>
 
-                                <a href="products.php" class="btn btn-primary d-none d-xl-block">Manage Products</a>
+                                <button type="button" class="btn btn-primary d-none d-xl-block" id="posBtn">POS</button>
+                                <button type="button" id="openTablesBtn" class="btn btn-outline-primary inline-flex align-items-center">
+                                    <i class="ri-table-line me-1"></i> Tables
+                                </button>
                             </div>
 
                             <div class="d-flex gap-2">
                                 <div class="position-relative">
-                                    <input type="text" id="tableSearch" class="form-control ps-10" placeholder="Search product...">
+                                    <input type="text" id="productSearch" class="form-control ps-10" placeholder="Search product...">
                                     <i data-lucide="search" class="size-4 icon-dark position-absolute top-50 start-0 ms-4 translate-middle-y"></i>
                                 </div>
                             </div>
@@ -333,47 +623,71 @@ function categoryImage($path)
                                 <div class="row g-4" id="productsGrid">
                                     <?php foreach ($products as $product): ?>
                                         <?php
-                                        $stock = (int)$product['stock_quantity'];
-                                        $image = productImage($product['image_path'], $defaultProductImage);
+                                        $stock = (int) $product["stock_quantity"];
+                                        $image = productImage(
+                                          $product["image_path"],
+                                          $defaultProductImage,
+                                        );
                                         ?>
                                         <div class="col-md-6 col-xl-4 col-xxl-3 product-item"
-                                            data-id="<?php echo (int)$product['id']; ?>"
-                                            data-name="<?php echo e(strtolower($product['name'])); ?>"
-                                            data-category="<?php echo (int)$product['category_id']; ?>"
-                                            data-price="<?php echo e($product['price']); ?>"
+                                            data-id="<?php echo (int) $product["id"]; ?>"
+                                            data-name="<?php echo e(
+                                              strtolower($product["name"]),
+                                            ); ?>"
+                                            data-category="<?php echo (int) $product[
+                                              "category_id"
+                                            ]; ?>"
+                                            data-price="<?php echo e($product["price"]); ?>"
                                             data-stock="<?php echo $stock; ?>">
                                             <div class="card mb-0 pos-product-card h-100">
                                                 <div class="card-body p-4 d-flex flex-column">
                                                     <div class="bg-body-tertiary bg-opacity-75 rounded">
-                                                        <img src="<?php echo e($image); ?>" class="img-fluid p-4 d-block pos-product-img" alt="<?php echo e($product['name']); ?>">
+                                                        <img src="<?php echo e(
+                                                          $image,
+                                                        ); ?>" class="img-fluid p-4 d-block pos-product-img" alt="<?php echo e(
+  $product["name"],
+); ?>">
                                                     </div>
 
                                                     <div class="mt-3 d-flex flex-column flex-grow-1">
                                                         <a href="#!" class="mb-1 d-block link link-custom fw-medium fs-16 text-truncate">
-                                                            <?php echo e($product['name']); ?>
+                                                            <?php echo e($product["name"]); ?>
                                                         </a>
 
                                                         <p class="text-muted small mb-1">
-                                                            <?php echo e($product['category_name'] ?: 'Uncategorized'); ?>
+                                                            <?php echo e(
+                                                              $product["category_name"] ?:
+                                                              "Uncategorized",
+                                                            ); ?>
                                                         </p>
 
-                                                        <p class="<?php echo $stock > 0 ? 'text-success' : 'text-danger'; ?> small mb-2">
+                                                        <p class="<?php echo $stock > 0
+                                                          ? "text-success"
+                                                          : "text-danger"; ?> small mb-2">
                                                             Stock: <?php echo $stock; ?>
                                                         </p>
 
                                                         <div class="d-flex justify-content-between align-items-end mt-auto">
-                                                            <h6 class="fs-lg mb-0">GHS <?php echo number_format((float)$product['price'], 2); ?></h6>
+                                                            <h6 class="fs-lg mb-0">GHS <?php echo number_format(
+                                                              (float) $product["price"],
+                                                              2,
+                                                            ); ?></h6>
 
                                                             <button type="button"
                                                                 class="btn btn-primary btn-icon size-9 rounded-circle add-to-cart-btn"
-                                                                <?php echo $stock <= 0 ? 'disabled' : ''; ?>
-                                                                data-product='<?php echo e(json_encode([
-                                                                                    'id' => (int)$product['id'],
-                                                                                    'name' => $product['name'],
-                                                                                    'price' => (float)$product['price'],
-                                                                                    'stock' => $stock,
-                                                                                    'image_path' => $image,
-                                                                                ])); ?>'>
+                                                                <?php echo $stock <= 0
+                                                                  ? "disabled"
+                                                                  : ""; ?>
+                                                                data-product='<?php echo e(
+                                                                  json_encode([
+                                                                    "id" => (int) $product["id"],
+                                                                    "name" => $product["name"],
+                                                                    "price" =>
+                                                                      (float) $product["price"],
+                                                                    "stock" => $stock,
+                                                                    "image_path" => $image,
+                                                                  ]),
+                                                                ); ?>'>
                                                                 <i data-lucide="plus" class="size-4"></i>
                                                             </button>
                                                         </div>
@@ -397,6 +711,40 @@ function categoryImage($path)
 
             <div class="col-lg-5 col-xl-4 col-xxl-3 border-top border-top-lg-0 border-start-lg position-relative">
                 <div class="p-5 h-100 d-flex flex-column bg-body">
+                    <div id="selectedTableBanner" class="selected-table-badge rounded p-3 mb-3 d-none">
+                        <div class="d-flex align-items-center justify-content-between gap-2">
+                            <div>
+                                <span class="badge bg-primary-subtle text-primary mb-1" id="selectedTableStatusBadge">Active Table</span>
+                                <h6 class="mb-0" id="selectedTableLabel">—</h6>
+                                <p class="text-muted mb-0 fs-sm" id="selectedTableMeta">New items will link to this table</p>
+                            </div>
+                            <div class="d-flex gap-1 flex-wrap justify-content-end">
+                                <button type="button" id="serveSelectedTableBtn" class="btn btn-primary btn-sm">Serve</button>
+                                <button type="button" id="changeTableBtn" class="btn btn-light border btn-sm">Change</button>
+                                <button type="button" id="clearTableBtn" class="btn btn-light border btn-sm">Clear</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="tableOrdersSection" class="card mb-4 d-none">
+                        <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0">Table Orders Today</h6>
+                            <span class="badge bg-warning-subtle text-warning" id="tableOrdersCount">0 orders</span>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-orders-panel" id="tableOrdersList">
+                                <p class="text-muted text-center py-4 mb-0">No orders yet for this table.</p>
+                            </div>
+                            <div class="border-top px-3 py-3 d-flex justify-content-between align-items-center bg-light">
+                                <span class="fw-semibold">Table Total</span>
+                                <span class="fw-bold text-primary" id="tableGrandTotal">GHS 0.00</span>
+                            </div>
+                            <div class="border-top px-3 py-2">
+                                <button type="button" id="viewOrdersBtn" class="btn btn-sm btn-outline-primary w-100 py-2">View All Orders</button>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="d-flex align-items-center justify-content-between gap-3 mb-4">
                         <div>
                             <h5 class="mb-1">Current Order</h5>
@@ -461,6 +809,18 @@ function categoryImage($path)
                     </div>
 
                     <div class="mt-4">
+                        <label class="form-label" for="cartTableSelect">Link to Table <span class="text-muted fw-normal">(optional)</span></label>
+                        <select id="cartTableSelect" class="form-control">
+                            <option value="">No table — walk-in order</option>
+                            <?php foreach ($tables as $table): ?>
+                                <option value="<?php echo (int) $table["id"]; ?>"><?php echo e(
+  $table["name"],
+); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <div class="mt-4">
                         <label class="form-label">Payment Method</label>
                         <select id="paymentMethod" class="form-control">
                             <option value="Cash">Cash</option>
@@ -500,388 +860,147 @@ function categoryImage($path)
         </div>
     </div>
 
+    <div id="ordersModalBackdrop" class="receipt-modal-backdrop">
+        <div class="receipt-modal">
+            <div class="receipt-modal-header">
+                <h6 id="ordersModalTitle">All Orders - <span id="ordersModalTableName">—</span></h6>
+                <div class="receipt-modal-actions">
+                    <button type="button" class="btn btn-primary btn-sm" id="printOrdersBtn">
+                        Print
+                    </button>
+                    <button type="button" class="btn btn-light border btn-sm" id="closeOrdersModalBtn">
+                        Close
+                    </button>
+                </div>
+            </div>
+            <div class="receipt-modal-body">
+                <div id="ordersModalContent" style="overflow-y: auto; padding: 24px;">
+                    <p class="text-center text-muted">Loading orders...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="tablesModalBackdrop" class="tables-modal-backdrop">
+        <div class="tables-modal">
+            <div class="tables-modal-hero d-flex justify-content-between align-items-start gap-3">
+                <div>
+                    <h5>Table Floor</h5>
+                    <p class="mb-0 opacity-75 fs-sm">Select, reserve, or start serving a table</p>
+                </div>
+                <button type="button" class="btn btn-light btn-sm" id="closeTablesModalBtn">Close</button>
+            </div>
+
+            <div class="tables-modal-toolbar">
+                <div class="row g-3 align-items-center">
+                    <div class="col-lg-5">
+                        <div class="position-relative">
+                            <input type="text" id="modalTableSearch" class="form-control ps-10 rounded-pill" placeholder="Search tables...">
+                            <i class="ri-search-line position-absolute top-50 start-0 ms-3 translate-middle-y text-muted"></i>
+                        </div>
+                    </div>
+                    <div class="col-lg-7">
+                        <div class="d-flex flex-wrap gap-2 justify-content-lg-end">
+                            <button type="button" class="tables-filter-chip active" data-table-filter="all">All</button>
+                            <button type="button" class="tables-filter-chip" data-table-filter="free">Free</button>
+                            <button type="button" class="tables-filter-chip" data-table-filter="reserved">Reserved</button>
+                            <button type="button" class="tables-filter-chip" data-table-filter="serving">Serving</button>
+                            <button type="button" class="tables-filter-chip" data-table-filter="ready">Ready</button>
+                            <?php if ($isAdmin): ?>
+                                <button type="button" id="showAddTableFormBtn" class="btn btn-primary btn-sm rounded-pill ms-lg-2">
+                                    <i class="ri-add-line"></i> Add Table
+                                </button>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+
+                <?php if ($isAdmin): ?>
+                    <div id="addTableForm" class="mt-3 p-3 border rounded-4 bg-white d-none">
+                        <div class="row g-2 align-items-end">
+                            <div class="col-md-6">
+                                <label class="form-label fs-sm mb-1">Table Name</label>
+                                <input type="text" id="newTableName" class="form-control form-control-sm" placeholder="e.g. Table 21">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fs-sm mb-1">Status</label>
+                                <select id="newTableStatus" class="form-control form-control-sm">
+                                    <option value="Active">Active</option>
+                                    <option value="Inactive">Inactive</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2 d-flex gap-1">
+                                <button type="button" id="saveNewTableBtn" class="btn btn-primary btn-sm w-100">Save</button>
+                                <button type="button" id="cancelAddTableBtn" class="btn btn-light border btn-sm">Cancel</button>
+                            </div>
+                        </div>
+                    </div>
+                <?php endif; ?>
+            </div>
+
+            <div class="tables-modal-body">
+                <div class="row g-3" id="tablesGrid">
+                    <div class="col-12 text-center py-5 text-muted" id="tablesLoadingMsg">Loading tables...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="reserveModalBackdrop" class="tables-modal-backdrop">
+        <div class="reserve-modal">
+            <div class="p-4 border-bottom">
+                <h6 class="mb-1">Reserve Table</h6>
+                <p class="text-muted mb-0 fs-sm" id="reserveModalTableName">—</p>
+            </div>
+            <div class="p-4">
+                <label class="form-label" for="reserveGuestName">Guest Name</label>
+                <input type="text" id="reserveGuestName" class="form-control" placeholder="Who is this reservation for?">
+                <input type="hidden" id="reserveTableId">
+                <div class="d-flex gap-2 mt-4">
+                    <button type="button" id="confirmReserveBtn" class="btn btn-primary flex-fill">Confirm Reservation</button>
+                    <button type="button" id="cancelReserveModalBtn" class="btn btn-light border">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <?php if ($isAdmin): ?>
+    <div id="editTableModalBackdrop" class="tables-modal-backdrop">
+        <div class="reserve-modal">
+            <div class="p-4 border-bottom d-flex justify-content-between align-items-center">
+                <h6 class="mb-0">Edit Table</h6>
+                <button type="button" class="btn btn-light border btn-sm" id="closeEditTableModalBtn">Close</button>
+            </div>
+            <div class="p-4">
+                <input type="hidden" id="editTableId">
+                <div class="mb-3">
+                    <label class="form-label">Table Name</label>
+                    <input type="text" id="editTableName" class="form-control">
+                </div>
+                <div class="mb-4">
+                    <label class="form-label">Status</label>
+                    <select id="editTableStatus" class="form-control">
+                        <option value="Active">Active</option>
+                        <option value="Inactive">Inactive</option>
+                    </select>
+                </div>
+                <div class="d-flex gap-2">
+                    <button type="button" id="saveEditTableBtn" class="btn btn-primary">Update Table</button>
+                    <button type="button" id="deleteTableBtn" class="btn btn-outline-danger">Delete</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+
     <script>
-        let cart = [];
-        let activeCategory = 'all';
-        let activeFilter = 'all';
-        let searchTerm = '';
-
-        function money(amount) {
-            return 'GHS ' + Number(amount || 0).toFixed(2);
-        }
-
-        function escapeHtml(value) {
-            return String(value)
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#039;');
-        }
-
-        function addToCart(product) {
-            const existingItem = cart.find(item => Number(item.id) === Number(product.id));
-
-            if (existingItem) {
-                if (existingItem.quantity >= existingItem.stock) {
-                    alert('Not enough stock available.');
-                    return;
-                }
-
-                existingItem.quantity += 1;
-            } else {
-                if (product.stock <= 0) {
-                    alert('This product is out of stock.');
-                    return;
-                }
-
-                cart.push({
-                    id: Number(product.id),
-                    name: product.name,
-                    price: Number(product.price),
-                    stock: Number(product.stock),
-                    quantity: 1,
-                    image_path: product.image_path
-                });
-            }
-
-            updateCartUI();
-        }
-
-        function removeFromCart(index) {
-            cart.splice(index, 1);
-            updateCartUI();
-        }
-
-        function updateQuantity(index, delta) {
-            if (!cart[index]) {
-                return;
-            }
-
-            const nextQuantity = cart[index].quantity + delta;
-
-            if (nextQuantity <= 0) {
-                removeFromCart(index);
-                return;
-            }
-
-            if (nextQuantity > cart[index].stock) {
-                alert('Not enough stock available.');
-                return;
-            }
-
-            cart[index].quantity = nextQuantity;
-            updateCartUI();
-        }
-
-        function clearCart() {
-            if (cart.length === 0) {
-                return;
-            }
-
-            if (!confirm('Clear current order?')) {
-                return;
-            }
-
-            cart = [];
-            updateCartUI();
-        }
-
-        function updateCartUI() {
-            const cartTbody = document.getElementById('cartItems');
-            const emptyMsg = document.getElementById('emptyOrderMessage');
-
-            cartTbody.innerHTML = '';
-
-            let subtotal = 0;
-            let totalQty = 0;
-
-            cart.forEach((item, index) => {
-                const lineTotal = item.price * item.quantity;
-                subtotal += lineTotal;
-                totalQty += item.quantity;
-
-                const rowHtml = `
-            <tr>
-                <td class="ps-0">
-                    <div class="d-flex align-items-center gap-3">
-                        <div class="avatar size-10 bg-light rounded p-1">
-                                                            <img src="${escapeHtml(item.image_path || './assets/uploads/placeholder.png')}" class="img-fluid" alt="${escapeHtml(item.name)}">
-                        </div>
-                        <div>
-                            <h6 class="mb-1 fs-14 text-truncate cart-product-name">${escapeHtml(item.name)}</h6>
-                            <p class="text-muted mb-0 fs-sm">${money(item.price)}</p>
-                        </div>
-                    </div>
-                </td>
-                <td>
-                    <div class="d-flex align-items-center gap-2">
-                        <button type="button" class="btn btn-light border qty-btn" onclick="updateQuantity(${index}, -1)">-</button>
-                        <span class="fw-medium">${item.quantity}</span>
-                        <button type="button" class="btn btn-light border qty-btn" onclick="updateQuantity(${index}, 1)">+</button>
-                    </div>
-                </td>
-                <td class="text-end pe-0">
-                    <div class="fw-medium">${money(lineTotal)}</div>
-                    <button type="button" class="btn btn-link text-danger p-0 fs-sm" onclick="removeFromCart(${index})">Remove</button>
-                </td>
-            </tr>
-        `;
-
-                cartTbody.insertAdjacentHTML('beforeend', rowHtml);
-            });
-
-            document.getElementById('subtotalAmount').innerText = money(subtotal);
-            document.getElementById('taxAmount').innerText = money(0);
-            document.getElementById('discountAmount').innerText = money(0);
-            document.getElementById('totalPayableAmount').innerText = money(subtotal);
-            document.getElementById('itemCount').innerText = 'Items: ' + totalQty;
-
-            emptyMsg.style.display = cart.length > 0 ? 'none' : 'block';
-        }
-
-        function applyProductFilters() {
-            const items = Array.from(document.querySelectorAll('.product-item'));
-            const noProductsFound = document.getElementById('noProductsFound');
-            let visibleCount = 0;
-
-            items.forEach(item => {
-                const productName = item.dataset.name || '';
-                const productCategory = item.dataset.category || '';
-                const productStock = Number(item.dataset.stock || 0);
-
-                let visible = true;
-
-                if (activeCategory !== 'all' && productCategory !== activeCategory) {
-                    visible = false;
-                }
-
-                if (searchTerm !== '' && productName.indexOf(searchTerm) === -1) {
-                    visible = false;
-                }
-
-                if (activeFilter === 'instock' && productStock <= 0) {
-                    visible = false;
-                }
-
-                if (activeFilter === 'outofstock' && productStock > 0) {
-                    visible = false;
-                }
-
-                if (activeFilter === 'lowstock' && !(productStock > 0 && productStock <= 5)) {
-                    visible = false;
-                }
-
-                item.style.display = visible ? 'block' : 'none';
-
-                if (visible) {
-                    visibleCount++;
-                }
-            });
-
-            if (activeFilter === 'price-low' || activeFilter === 'price-high') {
-                const grid = document.getElementById('productsGrid');
-
-                items.sort((a, b) => {
-                    const aPrice = Number(a.dataset.price || 0);
-                    const bPrice = Number(b.dataset.price || 0);
-
-                    return activeFilter === 'price-low' ? aPrice - bPrice : bPrice - aPrice;
-                });
-
-                items.forEach(item => grid.appendChild(item));
-            }
-
-            if (noProductsFound) {
-                noProductsFound.classList.toggle('d-none', visibleCount > 0);
-            }
-        }
-
-        function showToast(message, type = 'success') {
-            const toast = document.getElementById('posToast');
-
-            toast.className = 'pos-toast show ' + type;
-            toast.innerText = message;
-
-            clearTimeout(window.posToastTimeout);
-            window.posToastTimeout = setTimeout(function() {
-                toast.className = 'pos-toast';
-                toast.innerText = '';
-            }, 3000);
-        }
-
-        function openReceiptModal(saleId) {
-            const modal = document.getElementById('receiptModalBackdrop');
-            const frame = document.getElementById('receiptPreviewFrame');
-            const title = document.getElementById('receiptModalTitle');
-
-            title.innerText = 'Receipt Preview - Receipt No.: ' + saleId;
-            frame.src = 'receipt.php?id=' + encodeURIComponent(saleId);
-            modal.classList.add('show');
-        }
-
-        function closeReceiptModal() {
-            const modal = document.getElementById('receiptModalBackdrop');
-            const frame = document.getElementById('receiptPreviewFrame');
-
-            modal.classList.remove('show');
-            frame.src = 'about:blank';
-        }
-
-        function printReceiptFromModal() {
-            const frame = document.getElementById('receiptPreviewFrame');
-
-            if (!frame || !frame.contentWindow) {
-                closeReceiptModal();
-                return;
-            }
-
-            const closeAfterPrint = function() {
-                setTimeout(function() {
-                    closeReceiptModal();
-                }, 300);
-            };
-
-            frame.contentWindow.onafterprint = closeAfterPrint;
-
-            frame.contentWindow.focus();
-            frame.contentWindow.print();
-
-            setTimeout(function() {
-                if (document.hasFocus()) {
-                    closeReceiptModal();
-                }
-            }, 1200);
-        }
-
-
-        async function processCheckout() {
-            if (cart.length === 0) {
-                showToast('Cart is empty.', 'error');
-                return;
-            }
-
-            const checkoutBtn = document.getElementById('checkoutBtn');
-            checkoutBtn.disabled = true;
-            checkoutBtn.innerText = 'Processing...';
-
-            showToast('Processing payment...', 'success');
-
-            try {
-                const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-
-                const response = await fetch('api/save_sale.php', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        items: cart,
-                        total: total,
-                        payment_method: document.getElementById('paymentMethod').value
-                    })
-                });
-
-                const result = await response.json();
-
-                if (result.success) {
-                    showToast('Payment completed. Receipt No.: ' + result.sale_id, 'success');
-
-                    cart = [];
-                    updateCartUI();
-
-                    openReceiptModal(result.sale_id);
-                } else {
-                    showToast(result.error || 'Unable to save sale.', 'error');
-                }
-            } catch (error) {
-                showToast('System error occurred while processing checkout.', 'error');
-            } finally {
-                checkoutBtn.disabled = false;
-                checkoutBtn.innerText = 'Process Payment';
-            }
-        }
-
-        function updateClock() {
-            const now = new Date();
-
-            const dateEl = document.getElementById('pos-date');
-            const timeEl = document.getElementById('pos-time');
-
-            if (dateEl) {
-                dateEl.innerText = now.toLocaleDateString();
-            }
-
-            if (timeEl) {
-                timeEl.innerText = now.toLocaleTimeString();
-            }
-        }
-
-        document.addEventListener('DOMContentLoaded', function() {
-            document.querySelectorAll('.add-to-cart-btn').forEach(button => {
-                button.addEventListener('click', function() {
-                    addToCart(JSON.parse(this.dataset.product));
-                });
-            });
-
-            document.querySelectorAll('.category-filter').forEach(button => {
-                button.addEventListener('click', function() {
-                    document.querySelectorAll('.category-filter').forEach(btn => btn.classList.remove('active'));
-                    this.classList.add('active');
-
-                    activeCategory = this.dataset.category;
-                    applyProductFilters();
-                });
-            });
-
-            document.querySelectorAll('.product-filter').forEach(link => {
-                link.addEventListener('click', function(event) {
-                    event.preventDefault();
-
-                    activeFilter = this.dataset.filter;
-
-                    if (activeFilter === 'reset') {
-                        activeFilter = 'all';
-                        activeCategory = 'all';
-                        searchTerm = '';
-                        document.getElementById('tableSearch').value = '';
-
-                        document.querySelectorAll('.category-filter').forEach(btn => btn.classList.remove('active'));
-                        document.querySelector('.category-filter[data-category="all"]').classList.add('active');
-                    }
-
-                    applyProductFilters();
-                });
-            });
-
-            document.getElementById('tableSearch').addEventListener('input', function() {
-                searchTerm = this.value.toLowerCase().trim();
-                applyProductFilters();
-            });
-
-            document.getElementById('clearCartBtn').addEventListener('click', clearCart);
-            document.getElementById('checkoutBtn').addEventListener('click', processCheckout);
-
-            document.getElementById('closeReceiptModalBtn').addEventListener('click', closeReceiptModal);
-            document.getElementById('printReceiptBtn').addEventListener('click', printReceiptFromModal);
-
-            document.getElementById('receiptModalBackdrop').addEventListener('click', function(event) {
-                if (event.target === this) {
-                    closeReceiptModal();
-                }
-            });
-
-            document.addEventListener('keydown', function(event) {
-                if (event.key === 'Escape') {
-                    closeReceiptModal();
-                }
-            });
-
-            updateCartUI();
-            updateClock();
-            setInterval(updateClock, 1000);
-        });
+        window.POS_CONFIG = {
+            isAdmin: <?php echo $isAdmin ? "true" : "false"; ?>,
+            userId: <?php echo (int) $currentUserId; ?>,
+            username: <?php echo json_encode($currentUsername); ?>
+        };
     </script>
+    <script src="./assets/js/pos-page.js"></script>
 </body>
 
 </html>

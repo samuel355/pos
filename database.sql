@@ -35,16 +35,32 @@ CREATE TABLE IF NOT EXISTS staff (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS restaurant_tables (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL UNIQUE,
+    capacity INT NOT NULL DEFAULT 4,
+    status ENUM('Active', 'Inactive') NOT NULL DEFAULT 'Active',
+    reserved_by VARCHAR(100) DEFAULT NULL,
+    reserved_at TIMESTAMP NULL DEFAULT NULL,
+    serving_user_id INT DEFAULT NULL,
+    serve_status ENUM('none', 'serving', 'ready') NOT NULL DEFAULT 'none',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (serving_user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
 CREATE TABLE IF NOT EXISTS sales (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT,
+    table_id INT DEFAULT NULL,
     total_amount DECIMAL(10, 2) NOT NULL,
     discount DECIMAL(10, 2) DEFAULT 0,
     tax DECIMAL(10, 2) DEFAULT 0,
     final_amount DECIMAL(10, 2) NOT NULL,
     payment_method VARCHAR(50),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id)
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (table_id) REFERENCES restaurant_tables(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS sale_items (

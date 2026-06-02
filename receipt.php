@@ -1,43 +1,46 @@
 <?php
-require_once 'includes/auth_check.php';
-require_once 'config/db.php';
+require_once "includes/auth_check.php";
+require_once "config/db.php";
 
-$sale_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+$sale_id = isset($_GET["id"]) ? (int) $_GET["id"] : 0;
 
 $stmt = $pdo->prepare("
-    SELECT s.*, u.username 
-    FROM sales s 
-    LEFT JOIN users u ON s.user_id = u.id 
+    SELECT s.*, u.username, rt.name as table_name
+    FROM sales s
+    LEFT JOIN users u ON s.user_id = u.id
+    LEFT JOIN restaurant_tables rt ON s.table_id = rt.id
     WHERE s.id = ?
 ");
 $stmt->execute([$sale_id]);
 $sale = $stmt->fetch();
 
 if (!$sale) {
-    die('Sale not found');
+  die("Sale not found");
 }
 
 $stmt = $pdo->prepare("
-    SELECT si.*, p.name 
-    FROM sale_items si 
-    LEFT JOIN products p ON si.product_id = p.id 
+    SELECT si.*, p.name
+    FROM sale_items si
+    LEFT JOIN products p ON si.product_id = p.id
     WHERE si.sale_id = ?
 ");
 $stmt->execute([$sale_id]);
 $items = $stmt->fetchAll();
 
-function e($value) {
-    return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
+function e($value)
+{
+  return htmlspecialchars((string) $value, ENT_QUOTES, "UTF-8");
 }
 
-function money($amount) {
-    return 'GHS ' . number_format((float)$amount, 2);
+function money($amount)
+{
+  return "GHS " . number_format((float) $amount, 2);
 }
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>Receipt No.: <?php echo (int)$sale_id; ?></title>
+    <title>Receipt No.: <?php echo (int) $sale_id; ?></title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
@@ -241,7 +244,7 @@ function money($amount) {
     <div class="preview-header no-print">
         <h2>Receipt Preview</h2>
         <p class="receipt-number">
-            Receipt No.: <strong><?php echo (int)$sale_id; ?></strong>
+            Receipt No.: <strong><?php echo (int) $sale_id; ?></strong>
             <span>— review before printing.</span>
         </p>
     </div>
@@ -257,20 +260,15 @@ function money($amount) {
     </div>
 
     <div class="receipt-preview" id="receiptPreview">
-        <?php
-        $copies = [
-                'Customer Copy',
-                'Merchant Copy'
-        ];
-        ?>
+        <?php $copies = ["Customer Copy", "Merchant Copy"]; ?>
 
         <?php foreach ($copies as $copyLabel): ?>
             <div class="receipt-copy">
                 <div class="text-center">
                     <h3>GotPOS System</h3>
                     <p>Main Branch</p>
-                    <p class="receipt-number">Receipt No.: <strong><?php echo (int)$sale_id; ?></strong></p>
-                    <p><?php echo e($sale['created_at']); ?></p>
+                    <p class="receipt-number">Receipt No.: <strong><?php echo (int) $sale_id; ?></strong></p>
+                    <p><?php echo e($sale["created_at"]); ?></p>
                 </div>
 
                 <hr>
@@ -278,12 +276,20 @@ function money($amount) {
                 <div class="small">
                     <div class="d-flex">
                         <span>Cashier:</span>
-                        <span><?php echo e($sale['username'] ?: 'N/A'); ?></span>
+                        <span><?php echo e($sale["username"] ?: "N/A"); ?></span>
                     </div>
                     <div class="d-flex">
                         <span>Payment:</span>
-                        <span><?php echo e($sale['payment_method'] ?: 'Cash'); ?></span>
+                        <span><?php echo e($sale["payment_method"] ?: "Cash"); ?></span>
                     </div>
+                    <?php if ($sale["table_id"]): ?>
+                    <div class="d-flex">
+                        <span>Table:</span>
+                        <span><?php echo e(
+                          $sale["table_name"] ?: "Table #" . $sale["table_id"],
+                        ); ?></span>
+                    </div>
+                    <?php endif; ?>
                 </div>
 
                 <hr>
@@ -300,11 +306,13 @@ function money($amount) {
                     <?php foreach ($items as $item): ?>
                         <tr>
                             <td>
-                                <?php echo e($item['name']); ?>
-                                <div class="small muted">@ <?php echo money($item['unit_price']); ?></div>
+                                <?php echo e($item["name"]); ?>
+                                <div class="small muted">@ <?php echo money(
+                                  $item["unit_price"],
+                                ); ?></div>
                             </td>
-                            <td align="center"><?php echo (int)$item['quantity']; ?></td>
-                            <td class="text-end"><?php echo money($item['subtotal']); ?></td>
+                            <td align="center"><?php echo (int) $item["quantity"]; ?></td>
+                            <td class="text-end"><?php echo money($item["subtotal"]); ?></td>
                         </tr>
                     <?php endforeach; ?>
                     </tbody>
@@ -315,15 +323,15 @@ function money($amount) {
                 <div class="small">
                     <div class="d-flex">
                         <span>Subtotal:</span>
-                        <span><?php echo money($sale['total_amount']); ?></span>
+                        <span><?php echo money($sale["total_amount"]); ?></span>
                     </div>
                     <div class="d-flex">
                         <span>Tax:</span>
-                        <span><?php echo money($sale['tax']); ?></span>
+                        <span><?php echo money($sale["tax"]); ?></span>
                     </div>
                     <div class="d-flex">
                         <span>Discount:</span>
-                        <span><?php echo money($sale['discount']); ?></span>
+                        <span><?php echo money($sale["discount"]); ?></span>
                     </div>
                 </div>
 
@@ -331,7 +339,7 @@ function money($amount) {
 
                 <div class="d-flex">
                     <strong>Total:</strong>
-                    <strong><?php echo money($sale['final_amount']); ?></strong>
+                    <strong><?php echo money($sale["final_amount"]); ?></strong>
                 </div>
 
                 <hr>
