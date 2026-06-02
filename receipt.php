@@ -2,30 +2,81 @@
 require_once "includes/auth_check.php";
 require_once "config/db.php";
 
-$sale_id = isset($_GET["id"]) ? (int) $_GET["id"] : 0;
+$singleSaleId = isset($_GET["id"]) ? (int) $_GET["id"] : 0;
+$idsParam = isset($_GET["ids"]) ? trim((string) $_GET["ids"]) : "";
+$autoPrint = isset($_GET["auto_print"]) && $_GET["auto_print"] === "1";
+
+$saleIds = [];
+if ($idsParam !== "") {
+  foreach (explode(",", $idsParam) as $rawId) {
+    $id = (int) trim($rawId);
+    if ($id > 0) {
+      $saleIds[] = $id;
+    }
+  }
+  $saleIds = array_values(array_unique($saleIds));
+} elseif ($singleSaleId > 0) {
+  $saleIds[] = $singleSaleId;
+}
+
+if (empty($saleIds)) {
+  die("Sale not found");
+}
+
+$salePlaceholders = implode(",", array_fill(0, count($saleIds), "?"));
 
 $stmt = $pdo->prepare("
     SELECT s.*, u.username, rt.name as table_name
     FROM sales s
     LEFT JOIN users u ON s.user_id = u.id
     LEFT JOIN restaurant_tables rt ON s.table_id = rt.id
-    WHERE s.id = ?
+    WHERE s.id IN ($salePlaceholders)
 ");
-$stmt->execute([$sale_id]);
-$sale = $stmt->fetch();
+$stmt->execute($saleIds);
+$salesRows = $stmt->fetchAll();
 
-if (!$sale) {
+if (empty($salesRows)) {
   die("Sale not found");
+}
+
+$salesById = [];
+foreach ($salesRows as $row) {
+  $salesById[(int) $row["id"]] = $row;
 }
 
 $stmt = $pdo->prepare("
     SELECT si.*, p.name
     FROM sale_items si
     LEFT JOIN products p ON si.product_id = p.id
-    WHERE si.sale_id = ?
+    WHERE si.sale_id IN ($salePlaceholders)
 ");
-$stmt->execute([$sale_id]);
-$items = $stmt->fetchAll();
+$stmt->execute($saleIds);
+$itemsRows = $stmt->fetchAll();
+
+$itemsBySaleId = [];
+foreach ($itemsRows as $itemRow) {
+  $saleKey = (int) $itemRow["sale_id"];
+  if (!isset($itemsBySaleId[$saleKey])) {
+    $itemsBySaleId[$saleKey] = [];
+  }
+  $itemsBySaleId[$saleKey][] = $itemRow;
+}
+
+$receipts = [];
+foreach ($saleIds as $id) {
+  if (!isset($salesById[$id])) {
+    continue;
+  }
+
+  $receipts[] = [
+    "sale" => $salesById[$id],
+    "items" => $itemsBySaleId[$id] ?? [],
+  ];
+}
+
+if (empty($receipts)) {
+  die("Sale not found");
+}
 
 function e($value)
 {
@@ -36,11 +87,16 @@ function money($amount)
 {
   return "GHS " . number_format((float) $amount, 2);
 }
+
+$firstReceiptId = (int) $receipts[0]["sale"]["id"];
+$isBatch = count($receipts) > 1;
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>Receipt No.: <?php echo (int) $sale_id; ?></title>
+    <title><?php echo $isBatch
+      ? "Receipts (" . count($receipts) . ")"
+      : "Receipt No.: " . $firstReceiptId; ?></title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
@@ -244,8 +300,13 @@ function money($amount)
     <div class="preview-header no-print">
         <h2>Receipt Preview</h2>
         <p class="receipt-number">
-            Receipt No.: <strong><?php echo (int) $sale_id; ?></strong>
-            <span>— review before printing.</span>
+            <?php if ($isBatch): ?>
+                Receipts: <strong><?php echo (int) count($receipts); ?></strong>
+                <span>— review before printing.</span>
+            <?php else: ?>
+                Receipt No.: <strong><?php echo $firstReceiptId; ?></strong>
+                <span>— review before printing.</span>
+            <?php endif; ?>
         </p>
     </div>
 
@@ -261,94 +322,104 @@ function money($amount)
 
     <div class="receipt-preview" id="receiptPreview">
         <?php $copies = ["Customer Copy", "Merchant Copy"]; ?>
-
-        <?php foreach ($copies as $copyLabel): ?>
-            <div class="receipt-copy">
-                <div class="text-center">
-                    <h3>GotPOS System</h3>
-                    <p>Main Branch</p>
-                    <p class="receipt-number">Receipt No.: <strong><?php echo (int) $sale_id; ?></strong></p>
-                    <p><?php echo e($sale["created_at"]); ?></p>
-                </div>
-
-                <hr>
-
-                <div class="small">
-                    <div class="d-flex">
-                        <span>Cashier:</span>
-                        <span><?php echo e($sale["username"] ?: "N/A"); ?></span>
+        <?php foreach ($receipts as $receipt): ?>
+            <?php $sale = $receipt["sale"]; ?>
+            <?php $items = $receipt["items"]; ?>
+            <?php foreach ($copies as $copyLabel): ?>
+                <div class="receipt-copy">
+                    <div class="text-center">
+                        <h3>GotPOS System</h3>
+                        <p>Main Branch</p>
+                        <p class="receipt-number">Receipt No.: <strong><?php echo (int) $sale[
+                          "id"
+                        ]; ?></strong></p>
+                        <p><?php echo e($sale["created_at"]); ?></p>
                     </div>
-                    <div class="d-flex">
-                        <span>Payment:</span>
-                        <span><?php echo e($sale["payment_method"] ?: "Cash"); ?></span>
-                    </div>
-                    <?php if ($sale["table_id"]): ?>
-                    <div class="d-flex">
-                        <span>Table:</span>
-                        <span><?php echo e(
-                          $sale["table_name"] ?: "Table #" . $sale["table_id"],
-                        ); ?></span>
-                    </div>
-                    <?php endif; ?>
-                </div>
 
-                <hr>
+                    <hr>
 
-                <table>
-                    <thead>
-                    <tr>
-                        <th align="left">Item</th>
-                        <th align="center">Qty</th>
-                        <th class="text-end">Total</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    <?php foreach ($items as $item): ?>
+                    <div class="small">
+                        <div class="d-flex">
+                            <span>Cashier:</span>
+                            <span><?php echo e($sale["username"] ?: "N/A"); ?></span>
+                        </div>
+                        <div class="d-flex">
+                            <span>Payment:</span>
+                            <span><?php echo e($sale["payment_method"] ?: "Cash"); ?></span>
+                        </div>
+                        <?php if ($sale["table_id"]): ?>
+                        <div class="d-flex">
+                            <span>Table:</span>
+                            <span><?php echo e(
+                              $sale["table_name"] ?:
+                                "Table #" . $sale["table_id"],
+                            ); ?></span>
+                        </div>
+                        <?php endif; ?>
+                    </div>
+
+                    <hr>
+
+                    <table>
+                        <thead>
                         <tr>
-                            <td>
-                                <?php echo e($item["name"]); ?>
-                                <div class="small muted">@ <?php echo money(
-                                  $item["unit_price"],
-                                ); ?></div>
-                            </td>
-                            <td align="center"><?php echo (int) $item["quantity"]; ?></td>
-                            <td class="text-end"><?php echo money($item["subtotal"]); ?></td>
+                            <th align="left">Item</th>
+                            <th align="center">Qty</th>
+                            <th class="text-end">Total</th>
                         </tr>
-                    <?php endforeach; ?>
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                        <?php foreach ($items as $item): ?>
+                            <tr>
+                                <td>
+                                    <?php echo e($item["name"]); ?>
+                                    <div class="small muted">@ <?php echo money(
+                                      $item["unit_price"],
+                                    ); ?></div>
+                                </td>
+                                <td align="center"><?php echo (int) $item[
+                                  "quantity"
+                                ]; ?></td>
+                                <td class="text-end"><?php echo money(
+                                  $item["subtotal"],
+                                ); ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                        </tbody>
+                    </table>
 
-                <hr>
+                    <hr>
 
-                <div class="small">
-                    <div class="d-flex">
-                        <span>Subtotal:</span>
-                        <span><?php echo money($sale["total_amount"]); ?></span>
+                    <div class="small">
+                        <div class="d-flex">
+                            <span>Subtotal:</span>
+                            <span><?php echo money($sale["total_amount"]); ?></span>
+                        </div>
+                        <div class="d-flex">
+                            <span>Tax:</span>
+                            <span><?php echo money($sale["tax"]); ?></span>
+                        </div>
+                        <div class="d-flex">
+                            <span>Discount:</span>
+                            <span><?php echo money($sale["discount"]); ?></span>
+                        </div>
                     </div>
+
+                    <hr>
+
                     <div class="d-flex">
-                        <span>Tax:</span>
-                        <span><?php echo money($sale["tax"]); ?></span>
+                        <strong>Total:</strong>
+                        <strong><?php echo money($sale["final_amount"]); ?></strong>
                     </div>
-                    <div class="d-flex">
-                        <span>Discount:</span>
-                        <span><?php echo money($sale["discount"]); ?></span>
+
+                    <hr>
+
+                    <div class="text-center">
+                        <p>Thank you for your business!</p>
+                        <p class="copy-label">--- <?php echo e($copyLabel); ?> ---</p>
                     </div>
                 </div>
-
-                <hr>
-
-                <div class="d-flex">
-                    <strong>Total:</strong>
-                    <strong><?php echo money($sale["final_amount"]); ?></strong>
-                </div>
-
-                <hr>
-
-                <div class="text-center">
-                    <p>Thank you for your business!</p>
-                    <p class="copy-label">--- <?php echo e($copyLabel); ?> ---</p>
-                </div>
-            </div>
+            <?php endforeach; ?>
         <?php endforeach; ?>
     </div>
 </div>
@@ -360,6 +431,13 @@ function money($amount)
     function closeReceipt(){
         window.location.href = 'pos.php';
     }
+    <?php if ($autoPrint): ?>
+    window.addEventListener('load', function() {
+        setTimeout(function() {
+            window.print();
+        }, 150);
+    });
+    <?php endif; ?>
 </script>
 </body>
 </html>

@@ -1029,66 +1029,20 @@ function printOrdersFromModal() {
         return;
     }
 
-    const printWindow = window.open('', '_blank');
-    const tableName = selectedTableName || ('Table #' + selectedTableId);
-    const generatedAt = new Date().toLocaleString();
-    const bodyHtml = currentOrdersForPrint.map(order => {
-        const itemsRows = (order.items || []).map(item => `
-            <tr>
-                <td>${escapeHtml(item.product_name)}</td>
-                <td class="text-center">${item.quantity}</td>
-                <td class="text-end">${money(item.subtotal)}</td>
-            </tr>
-        `).join('');
+    const ids = currentOrdersForPrint
+        .map(order => Number(order.id))
+        .filter(id => id > 0);
 
-        return `
-            <section class="order-section">
-                <h3>Receipt #${order.id}</h3>
-                <p class="meta">Time: ${escapeHtml(formatTime(order.created_at))} | Payment: ${escapeHtml(order.payment_method || 'Cash')}</p>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Item</th>
-                            <th style="width:80px; text-align:center;">Qty</th>
-                            <th style="width:140px; text-align:right;">Subtotal</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${itemsRows}
-                    </tbody>
-                </table>
-                <p class="total">Items: ${order.item_count} | Total: ${money(order.final_amount)}</p>
-            </section>
-        `;
-    }).join('');
+    if (ids.length === 0) {
+        return;
+    }
 
-    printWindow.document.write(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Table ${tableName} Orders</title>
-            <style>
-                body { font-family: Arial; margin: 20px; }
-                h2 { text-align: center; }
-                h3 { margin-bottom: 6px; }
-                .meta { color: #555; font-size: 13px; margin-top: 0; }
-                table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-                th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-                th { background-color: #f2f2f2; }
-                .order-section { page-break-after: always; margin-bottom: 30px; }
-                .total { font-weight: bold; text-align: right; }
-                .print-meta { text-align: center; color: #666; margin-top: 0; font-size: 12px; }
-            </style>
-        </head>
-        <body>
-            <h2>All Orders - ${escapeHtml(tableName)}</h2>
-            <p class="print-meta">Generated: ${escapeHtml(generatedAt)} | Receipts: ${currentOrdersForPrint.length}</p>
-            ${bodyHtml}
-            <script>window.print();<\/script>
-        </body>
-        </html>
-    `);
-    printWindow.document.close();
+    const url = 'receipt.php?' + buildQuery({
+        ids: ids.join(','),
+        auto_print: '1'
+    });
+
+    window.open(url, '_blank');
 }
 
 async function processCheckout() {
