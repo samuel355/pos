@@ -242,15 +242,16 @@ function categoryImage($path)
         .table-card {
             position: relative;
             cursor: pointer;
-            transition: all .3s cubic-bezier(0.34, 1.56, 0.64, 1);
-            border: none;
+            transition: all .2s ease;
+            border: 1px solid #e9edf3;
             border-radius: 16px;
             overflow: hidden;
             background: #ffffff;
-            box-shadow: 0 2px 8px rgba(15, 23, 42, .08);
+            box-shadow: 0 6px 22px rgba(15, 23, 42, .06);
             height: 100%;
             display: flex;
             flex-direction: column;
+            min-height: 280px;
         }
 
         .table-card::before {
@@ -264,8 +265,9 @@ function categoryImage($path)
         }
 
         .table-card:hover {
-            transform: translateY(-8px) scale(1.02);
-            box-shadow: 0 20px 48px rgba(15, 23, 42, .15);
+            transform: translateY(-3px);
+            border-color: #d8e0eb;
+            box-shadow: 0 14px 30px rgba(15, 23, 42, .12);
         }
 
         .table-card:hover::before {
@@ -274,7 +276,7 @@ function categoryImage($path)
 
         .table-card.selected {
             border: 2px solid #6366f1;
-            box-shadow: 0 0 0 4px rgba(99, 102, 241, .1), 0 20px 48px rgba(99, 102, 241, .2);
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, .12), 0 14px 30px rgba(99, 102, 241, .18);
         }
 
         .table-card.state-reserved::before { background: linear-gradient(90deg, #a855f7, #d946ef); }
@@ -288,21 +290,33 @@ function categoryImage($path)
         .table-card.state-occupied { background: linear-gradient(135deg, rgba(249, 115, 22, 0.05) 0%, rgba(234, 88, 12, 0.03) 100%); }
 
         .table-card-icon {
-            width: 56px;
-            height: 56px;
-            border-radius: 16px;
+            width: 50px;
+            height: 50px;
+            border-radius: 14px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 28px;
+            font-size: 24px;
             background: rgba(99, 102, 241, .12);
             color: #6366f1;
             transition: all .3s ease;
         }
 
-        .table-card:hover .table-card-icon {
-            transform: scale(1.1) rotate(5deg);
-            background: rgba(99, 102, 241, .18);
+        .table-card:hover .table-card-icon { background: rgba(99, 102, 241, .16); }
+
+        .table-card-content {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            flex: 1;
+        }
+
+        .table-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 10px;
+            margin-bottom: 2px;
         }
 
         .table-card.state-reserved .table-card-icon { background: rgba(168, 85, 247, .15); color: #a855f7; }
@@ -315,10 +329,12 @@ function categoryImage($path)
             font-weight: 700;
             letter-spacing: .05em;
             text-transform: uppercase;
-            padding: 6px 12px;
+            padding: 6px 10px;
             border-radius: 12px;
             backdrop-filter: blur(8px);
             transition: all .3s ease;
+            line-height: 1;
+            white-space: nowrap;
         }
 
         .table-status-pill.free { background: rgba(34, 197, 94, 0.15); color: #16a34a; }
@@ -327,9 +343,7 @@ function categoryImage($path)
         .table-status-pill.ready { background: rgba(245, 158, 11, 0.15); color: #f59e0b; animation: readyPulse 1.6s ease-in-out infinite; }
         .table-status-pill.occupied { background: rgba(249, 115, 22, 0.15); color: #f97316; }
 
-        .table-card:hover .table-status-pill {
-            transform: scale(1.05);
-        }
+        .table-card:hover .table-status-pill { transform: none; }
 
         @keyframes readyPulse {
             0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, .35); }
@@ -338,31 +352,117 @@ function categoryImage($path)
 
         .table-card-actions {
             display: flex;
+            flex-direction: column;
             gap: 8px;
             margin-top: auto;
-            padding-top: 12px;
+            padding-top: 14px;
+            border-top: 1px solid rgba(148, 163, 184, .2);
         }
 
         .table-card-actions .btn {
-            flex: 1;
+            min-height: 38px;
             font-size: 12px;
             font-weight: 600;
-            border-radius: 10px;
-            padding: 8px 12px;
-            transition: all .2s ease;
-            border: none;
+            border-radius: 12px;
+            padding: 9px 12px;
+            transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+            border: 1px solid #dbe3ee;
+            background: #ffffff;
+            color: #334155;
+        }
+
+        .table-card-actions .table-card-actions-primary {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
         }
 
         .table-card-actions .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, .15);
+            transform: none;
+            box-shadow: none;
+            background: #f1f5f9;
+            border-color: #cbd5e1;
+        }
+
+        .table-card-actions .btn.btn-warning {
+            background: #4f46e5;
+            border-color: #4f46e5;
+            color: #fff;
+        }
+
+        .table-card-actions .btn.btn-warning:hover {
+            background: #4338ca;
+            border-color: #4338ca;
+            color: #fff;
+        }
+
+        .table-card-actions .btn.btn-outline-primary {
+            background: #eef2ff;
+            border-color: #c7d2fe;
+            color: #4338ca;
+        }
+
+        .table-card-actions .btn.btn-outline-primary:hover {
+            background: #e0e7ff;
+            border-color: #a5b4fc;
+            color: #4338ca;
+        }
+
+        .table-card-actions .btn.btn-outline-secondary {
+            background: #f8fafc;
+            border-color: #dbe3ee;
+            color: #475569;
+        }
+
+        .table-card-actions .btn.btn-outline-secondary:hover {
+            background: #f1f5f9;
+            border-color: #cbd5e1;
+            color: #334155;
+        }
+
+        .table-card-actions .btn.btn-outline-purple {
+            background: #faf5ff;
+            border-color: #e9d5ff;
+            color: #7c3aed;
+        }
+
+        .table-card-actions .btn.btn-outline-purple:hover {
+            background: #f3e8ff;
+            border-color: #d8b4fe;
+            color: #6d28d9;
         }
 
         .table-meta-line {
             font-size: 12px;
             color: #64748b;
-            margin-bottom: 6px;
+            margin-bottom: 2px;
             font-weight: 500;
+            line-height: 1.35;
+            word-break: break-word;
+        }
+
+        .table-card h6 {
+            margin: 0;
+            line-height: 1.25;
+            word-break: break-word;
+            font-size: 18px;
+            color: #0f172a;
+        }
+
+        .table-card .fs-15 {
+            font-size: 20px !important;
+            font-weight: 700;
+            color: #f97316 !important;
+        }
+
+        @media (max-width: 575.98px) {
+            .table-card {
+                min-height: 0;
+            }
+
+            .table-card-actions .table-card-actions-primary {
+                grid-template-columns: 1fr;
+            }
         }
 
         .tables-modal-backdrop {
@@ -434,8 +534,8 @@ function categoryImage($path)
         }
 
         #tablesGrid {
-            row-gap: 8px !important;
-            column-gap: 12px !important;
+            row-gap: 16px !important;
+            column-gap: 16px !important;
         }
 
         #tablesGrid > div {
@@ -939,7 +1039,7 @@ function categoryImage($path)
             </div>
 
             <div class="tables-modal-body">
-                <div class="row g-3" id="tablesGrid">
+                <div class="row g-8" id="tablesGrid">
                     <div class="col-12 text-center py-5 text-muted" id="tablesLoadingMsg">Loading tables...</div>
                 </div>
             </div>

@@ -530,23 +530,24 @@ function renderTablesGrid() {
         const reserveButton = !showReserveButton
             ? ''
             : table.reserved_by
-            ? `<button type="button" class="btn btn-light border btn-sm cancel-reserve-btn" data-table-id="${table.id}">Unreserve</button>`
-            : `<button type="button" class="btn btn-outline-purple btn-sm reserve-table-btn" data-table-id="${table.id}" data-table-name="${escapeHtml(table.name)}" style="border-color:#c084fc;color:#9333ea;">Reserve</button>`;
+            ? `<button type="button" class="btn btn-light border btn-sm cancel-reserve-btn table-action-half" data-table-id="${table.id}">Unreserve</button>`
+            : `<button type="button" class="btn btn-outline-purple btn-sm reserve-table-btn table-action-half" data-table-id="${table.id}" data-table-name="${escapeHtml(table.name)}">Reserve</button>`;
 
         const showPrintButton = table.serve_status !== 'none';
         const printButton = !showPrintButton
             ? ''
-            : `<button type="button" class="btn btn-outline-secondary btn-sm print-table-orders-btn" data-table-id="${table.id}" data-table-name="${escapeHtml(table.name)}">Print Receipts</button>`;
+            : `<button type="button" class="btn btn-outline-secondary btn-sm print-table-orders-btn table-action-full" data-table-id="${table.id}" data-table-name="${escapeHtml(table.name)}">Print Receipts</button>`;
 
         const adminActions = POS_IS_ADMIN ? `
-            <button type="button" class="btn btn-light border btn-sm edit-table-btn" data-table-id="${table.id}">Edit</button>
+            <button type="button" class="btn btn-light border btn-sm edit-table-btn table-action-full" data-table-id="${table.id}">Edit Table</button>
         ` : '';
 
         return `
             <div class="col-md-6 col-xl-4 col-xxl-3">
                 <div class="${cardClasses.join(' ')}" data-table-id="${table.id}" data-table-name="${escapeHtml(table.name)}">
                     <div class="card-body p-4 d-flex flex-column">
-                        <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
+                        <div class="table-card-content">
+                        <div class="table-card-header">
                             <div class="table-card-icon">
                                 <i class="ri-restaurant-2-line"></i>
                             </div>
@@ -558,10 +559,13 @@ function renderTablesGrid() {
                         ${servingLine}
                         <div class="table-meta-line">${orderCount} order${orderCount === 1 ? '' : 's'} today</div>
                         <div class="fw-bold text-primary fs-15">${money(totalAmount)}</div>
+                        </div>
 
                         <div class="table-card-actions" onclick="event.stopPropagation()">
-                            ${reserveButton}
-                            <button type="button" class="btn ${serveButtonClass} btn-sm serve-table-btn" data-table-id="${table.id}">${serveButtonLabel}</button>
+                            <div class="table-card-actions-primary">
+                                ${reserveButton}
+                                <button type="button" class="btn ${serveButtonClass} btn-sm serve-table-btn table-action-half" data-table-id="${table.id}">${serveButtonLabel}</button>
+                            </div>
                             ${printButton}
                             ${adminActions}
                         </div>
