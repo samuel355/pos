@@ -45,7 +45,7 @@ $low_stock_products = $stmt->fetchAll();
 </div>
 
 <div class="row g-4">
-    <div class="col-xl-4 col-md-6">
+    <div class="col-xl-3 col-md-6">
         <div class="card h-100">
             <div class="card-body">
                 <div class="d-flex align-items-center justify-content-between mb-4">
@@ -62,7 +62,24 @@ $low_stock_products = $stmt->fetchAll();
         </div>
     </div>
 
-    <div class="col-xl-4 col-md-6">
+    <div class="col-xl-3 col-md-6">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="d-flex align-items-center justify-content-between mb-4">
+                    <div>
+                        <p class="mb-1 text-muted">All Sales Amount</p>
+                        <h5 class="mb-0 fs-22">GHS <?php echo number_format((float)$all_sales_amount, 2); ?></h5>
+                    </div>
+                    <div class="avatar size-12 bg-primary-subtle rounded-circle text-primary d-flex align-items-center justify-content-center">
+                        <i class="ri-coins-line fs-4"></i>
+                    </div>
+                </div>
+                <span class="text-muted fs-sm">Lifetime sales total</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6">
         <div class="card h-100">
             <div class="card-body">
                 <div class="d-flex align-items-center justify-content-between mb-4">
@@ -79,7 +96,7 @@ $low_stock_products = $stmt->fetchAll();
         </div>
     </div>
 
-    <div class="col-xl-4 col-md-6">
+    <div class="col-xl-3 col-md-6">
         <div class="card h-100">
             <div class="card-body">
                 <div class="d-flex align-items-center justify-content-between mb-4">

@@ -5,6 +5,7 @@ require_once "config/db.php";
 $singleSaleId = isset($_GET["id"]) ? (int) $_GET["id"] : 0;
 $idsParam = isset($_GET["ids"]) ? trim((string) $_GET["ids"]) : "";
 $autoPrint = isset($_GET["auto_print"]) && $_GET["auto_print"] === "1";
+$embedded = isset($_GET["embedded"]) && $_GET["embedded"] === "1";
 
 $saleIds = [];
 if ($idsParam !== "") {
@@ -297,28 +298,30 @@ $isBatch = count($receipts) > 1;
 </head>
 <body>
 <div class="preview-page">
-    <div class="preview-header no-print">
-        <h2>Receipt Preview</h2>
-        <p class="receipt-number">
-            <?php if ($isBatch): ?>
-                Receipts: <strong><?php echo (int) count($receipts); ?></strong>
-                <span>— review before printing.</span>
-            <?php else: ?>
-                Receipt No.: <strong><?php echo $firstReceiptId; ?></strong>
-                <span>— review before printing.</span>
-            <?php endif; ?>
-        </p>
-    </div>
+    <?php if (!$embedded): ?>
+        <div class="preview-header no-print">
+            <h2>Receipt Preview</h2>
+            <p class="receipt-number">
+                <?php if ($isBatch): ?>
+                    Receipts: <strong><?php echo (int) count($receipts); ?></strong>
+                    <span>— review before printing.</span>
+                <?php else: ?>
+                    Receipt No.: <strong><?php echo $firstReceiptId; ?></strong>
+                    <span>— review before printing.</span>
+                <?php endif; ?>
+            </p>
+        </div>
 
-    <div class="actions no-print">
-        <button type="button" class="btn btn-primary" onclick="printReceipt()">
-            Print Receipt
-        </button>
+        <div class="actions no-print">
+            <button type="button" class="btn btn-primary" onclick="printReceipt()">
+                Print Receipt
+            </button>
 
-        <button type="button" class="btn btn-light" onclick="closeReceipt()">
-            Close
-        </button>
-    </div>
+            <button type="button" class="btn btn-light" onclick="closeReceipt()">
+                Close
+            </button>
+        </div>
+    <?php endif; ?>
 
     <div class="receipt-preview" id="receiptPreview">
         <?php $copies = ["Customer Copy", "Merchant Copy"]; ?>
@@ -429,6 +432,10 @@ $isBatch = count($receipts) > 1;
         window.print();
     }
     function closeReceipt(){
+        if (window.parent && typeof window.parent.closeReceiptModal === 'function') {
+            window.parent.closeReceiptModal();
+            return;
+        }
         window.location.href = 'pos.php';
     }
     <?php if ($autoPrint): ?>

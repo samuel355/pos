@@ -877,12 +877,21 @@ function showToast(message, type = 'success') {
 }
 
 function openReceiptModal(saleId) {
+    const titleText = 'Receipt Preview - Receipt No.: ' + saleId;
+    const receiptUrl = 'receipt.php?' + buildQuery({
+        id: saleId,
+        embedded: '1'
+    });
+    openReceiptModalByUrl(titleText, receiptUrl);
+}
+
+function openReceiptModalByUrl(titleText, receiptUrl) {
     const modal = document.getElementById('receiptModalBackdrop');
     const frame = document.getElementById('receiptPreviewFrame');
     const title = document.getElementById('receiptModalTitle');
 
-    title.innerText = 'Receipt Preview - Receipt No.: ' + saleId;
-    frame.src = 'receipt.php?id=' + encodeURIComponent(saleId);
+    title.innerText = titleText;
+    frame.src = receiptUrl;
     modal.classList.add('show');
 }
 
@@ -1004,8 +1013,13 @@ async function openOrdersModal(tableId, tableName) {
 
         document.querySelectorAll('.print-single-receipt').forEach(btn => {
             btn.addEventListener('click', function() {
-                const receiptId = this.dataset.receiptId;
-                window.open('receipt.php?id=' + receiptId, '_blank');
+                const receiptId = Number(this.dataset.receiptId);
+                if (!receiptId) {
+                    return;
+                }
+
+                closeOrdersModal();
+                openReceiptModal(receiptId);
             });
         });
 
@@ -1039,10 +1053,13 @@ function printOrdersFromModal() {
 
     const url = 'receipt.php?' + buildQuery({
         ids: ids.join(','),
-        auto_print: '1'
+        auto_print: '1',
+        embedded: '1'
     });
 
-    window.open(url, '_blank');
+    const titleText = 'Receipt Preview - ' + ids.length + ' Receipts';
+    closeOrdersModal();
+    openReceiptModalByUrl(titleText, url);
 }
 
 async function processCheckout() {
