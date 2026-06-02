@@ -10,6 +10,7 @@ let selectedTableName = null;
 let allTables = [];
 let modalTableSearchTerm = '';
 let activeTableFilter = 'all';
+let currentOrdersForPrint = [];
 const API_TABLES = 'api/tables.php';
 const API_TABLE_ORDERS = 'api/get_table_orders.php';
 const API_SAVE_SALE = 'api/save_sale.php';
@@ -286,6 +287,11 @@ function getTableStatusLabel(table) {
     return 'Free';
 }
 
+function canFinishService(table) {
+    const isServingState = table.serve_status === 'serving' || table.serve_status === 'ready';
+    return isServingState && Number(table.serving_user_id) === POS_USER_ID;
+}
+
 function getSelectedTableRecord() {
     if (!selectedTableId) {
         return null;
@@ -350,15 +356,9 @@ function updateSelectedTableBanner() {
     if (table.serve_status === 'none') {
         serveBtn.innerText = 'Serve';
         serveBtn.className = 'btn btn-primary btn-sm';
-    } else if (table.serve_status === 'serving' && Number(table.serving_user_id) === POS_USER_ID) {
-        serveBtn.innerText = 'Ready to Serve';
-        serveBtn.className = 'btn btn-warning btn-sm';
-    } else if (table.serve_status === 'ready') {
-        serveBtn.innerText = 'Clear Serve';
-        serveBtn.className = 'btn btn-outline-secondary btn-sm';
     } else {
-        serveBtn.innerText = 'Take Over';
-        serveBtn.className = 'btn btn-outline-primary btn-sm';
+        serveBtn.innerText = 'Serve Again';
+        serveBtn.className = 'btn btn-warning btn-sm';
     }
 
     updateServingIndicator();
@@ -507,17 +507,22 @@ function renderTablesGrid() {
         let serveButtonLabel = 'Serve';
         let serveButtonClass = 'btn-outline-primary';
 
-        if (table.serve_status === 'serving' && Number(table.serving_user_id) === POS_USER_ID) {
-            serveButtonLabel = 'Ready';
+        if (table.serve_status !== 'none') {
+            serveButtonLabel = 'Serve Again';
             serveButtonClass = 'btn-warning';
-        } else if (table.serve_status === 'ready') {
-            serveButtonLabel = 'Done';
-            serveButtonClass = 'btn-outline-secondary';
         }
 
-        const reserveButton = table.reserved_by
+        const showReserveButton = table.serve_status === 'none';
+        const reserveButton = !showReserveButton
+            ? ''
+            : table.reserved_by
             ? `<button type="button" class="btn btn-light border btn-sm cancel-reserve-btn" data-table-id="${table.id}">Unreserve</button>`
             : `<button type="button" class="btn btn-outline-purple btn-sm reserve-table-btn" data-table-id="${table.id}" data-table-name="${escapeHtml(table.name)}" style="border-color:#c084fc;color:#9333ea;">Reserve</button>`;
+
+        const showPrintButton = table.serve_status !== 'none';
+        const printButton = !showPrintButton
+            ? ''
+            : `<button type="button" class="btn btn-outline-secondary btn-sm print-table-orders-btn" data-table-id="${table.id}" data-table-name="${escapeHtml(table.name)}">Print Receipts</button>`;
 
         const adminActions = POS_IS_ADMIN ? `
             <button type="button" class="btn btn-light border btn-sm edit-table-btn" data-table-id="${table.id}">Edit</button>
@@ -543,6 +548,7 @@ function renderTablesGrid() {
                         <div class="table-card-actions" onclick="event.stopPropagation()">
                             ${reserveButton}
                             <button type="button" class="btn ${serveButtonClass} btn-sm serve-table-btn" data-table-id="${table.id}">${serveButtonLabel}</button>
+                            ${printButton}
                             ${adminActions}
                         </div>
                     </div>
@@ -572,6 +578,15 @@ function renderTablesGrid() {
     grid.querySelectorAll('.serve-table-btn').forEach(button => {
         button.addEventListener('click', function() {
             handleServeAction(Number(this.dataset.tableId));
+        });
+    });
+
+    grid.querySelectorAll('.print-table-orders-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const tableId = Number(this.dataset.tableId);
+            const tableName = this.dataset.tableName || null;
+            setSelectedTable(tableId, tableName);
+            openOrdersModal(tableId, tableName);
         });
     });
 
@@ -641,22 +656,20 @@ async function handleServeAction(tableId) {
         return;
     }
 
-    if (table.serve_status === 'serving' && Number(table.serving_user_id) === POS_USER_ID) {
-        await tableAction('mark_ready', tableId);
-        closeTablesModal();
-        return;
-    }
-
-    if (table.serve_status === 'ready') {
-        await tableAction('clear_serve', tableId);
-        return;
-    }
-
     if (table.serve_status === 'serving') {
         if (!confirm('This table is already being served by ' + (table.serving_username || 'another staff member') + '. Take over?')) {
             return;
         }
 
+        const ok = await tableAction('serve', tableId);
+        if (ok) {
+            setSelectedTable(tableId, table.name);
+            closeTablesModal();
+        }
+        return;
+    }
+
+    if (table.serve_status === 'ready') {
         const ok = await tableAction('serve', tableId);
         if (ok) {
             setSelectedTable(tableId, table.name);
@@ -925,8 +938,10 @@ async function openOrdersModal(tableId, tableName) {
         }
 
         const orders = result.orders || [];
+        currentOrdersForPrint = orders;
 
         if (orders.length === 0) {
+            currentOrdersForPrint = [];
             content.innerHTML = '<p class="text-center text-muted">No orders for this table.</p>';
             return;
         }
@@ -978,6 +993,13 @@ async function openOrdersModal(tableId, tableName) {
         });
 
         html += '</div>';
+        html += `
+            <div class="border-top mt-4 pt-3 d-flex flex-wrap justify-content-end gap-2">
+                <button type="button" class="btn btn-outline-primary btn-sm" id="printAllReceiptsBottomBtn">
+                    <i class="ri-printer-line me-1"></i> Print All Receipts
+                </button>
+            </div>
+        `;
         content.innerHTML = html;
 
         document.querySelectorAll('.print-single-receipt').forEach(btn => {
@@ -986,23 +1008,59 @@ async function openOrdersModal(tableId, tableName) {
                 window.open('receipt.php?id=' + receiptId, '_blank');
             });
         });
+
+        const printAllBottomBtn = document.getElementById('printAllReceiptsBottomBtn');
+        if (printAllBottomBtn) {
+            printAllBottomBtn.addEventListener('click', printOrdersFromModal);
+        }
     } catch (error) {
+        currentOrdersForPrint = [];
         content.innerHTML = '<p class="text-danger text-center">Failed to load orders.</p>';
     }
 }
 
 function closeOrdersModal() {
     document.getElementById('ordersModalBackdrop').classList.remove('show');
+    currentOrdersForPrint = [];
 }
 
 function printOrdersFromModal() {
-    if (!selectedTableId) {
+    if (!selectedTableId || currentOrdersForPrint.length === 0) {
         return;
     }
 
-    const content = document.getElementById('ordersModalContent');
     const printWindow = window.open('', '_blank');
     const tableName = selectedTableName || ('Table #' + selectedTableId);
+    const generatedAt = new Date().toLocaleString();
+    const bodyHtml = currentOrdersForPrint.map(order => {
+        const itemsRows = (order.items || []).map(item => `
+            <tr>
+                <td>${escapeHtml(item.product_name)}</td>
+                <td class="text-center">${item.quantity}</td>
+                <td class="text-end">${money(item.subtotal)}</td>
+            </tr>
+        `).join('');
+
+        return `
+            <section class="order-section">
+                <h3>Receipt #${order.id}</h3>
+                <p class="meta">Time: ${escapeHtml(formatTime(order.created_at))} | Payment: ${escapeHtml(order.payment_method || 'Cash')}</p>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Item</th>
+                            <th style="width:80px; text-align:center;">Qty</th>
+                            <th style="width:140px; text-align:right;">Subtotal</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${itemsRows}
+                    </tbody>
+                </table>
+                <p class="total">Items: ${order.item_count} | Total: ${money(order.final_amount)}</p>
+            </section>
+        `;
+    }).join('');
 
     printWindow.document.write(`
         <!DOCTYPE html>
@@ -1012,16 +1070,20 @@ function printOrdersFromModal() {
             <style>
                 body { font-family: Arial; margin: 20px; }
                 h2 { text-align: center; }
+                h3 { margin-bottom: 6px; }
+                .meta { color: #555; font-size: 13px; margin-top: 0; }
                 table { width: 100%; border-collapse: collapse; margin-top: 20px; }
                 th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
                 th { background-color: #f2f2f2; }
                 .order-section { page-break-after: always; margin-bottom: 30px; }
                 .total { font-weight: bold; text-align: right; }
+                .print-meta { text-align: center; color: #666; margin-top: 0; font-size: 12px; }
             </style>
         </head>
         <body>
             <h2>All Orders - ${escapeHtml(tableName)}</h2>
-            ${content.innerHTML}
+            <p class="print-meta">Generated: ${escapeHtml(generatedAt)} | Receipts: ${currentOrdersForPrint.length}</p>
+            ${bodyHtml}
             <script>window.print();<\/script>
         </body>
         </html>

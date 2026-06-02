@@ -222,6 +222,64 @@ try {
         exit();
     }
 
+    if ($method === 'POST' && $action === 'finish_service') {
+        $tableId = isset($data['id']) ? (int)$data['id'] : 0;
+
+        if ($tableId <= 0) {
+            throw new Exception('Invalid table ID.');
+        }
+
+        $check = $pdo->prepare('SELECT serving_user_id, serve_status FROM restaurant_tables WHERE id = ?');
+        $check->execute([$tableId]);
+        $table = $check->fetch();
+
+        if (!$table) {
+            throw new Exception('Table not found.');
+        }
+
+        if ((int)$table['serving_user_id'] !== $userId && !$isAdmin) {
+            throw new Exception('Only the assigned server or an admin can finish service.');
+        }
+
+        $pdo->beginTransaction();
+
+        try {
+            // Clear today's table links so the table goes back to default state
+            // while preserving sale history.
+            $clearSales = $pdo->prepare("
+                UPDATE sales
+                SET table_id = NULL
+                WHERE table_id = ?
+                  AND DATE(created_at) = CURDATE()
+            ");
+            $clearSales->execute([$tableId]);
+
+            $resetTable = $pdo->prepare("
+                UPDATE restaurant_tables
+                SET reserved_by = NULL,
+                    reserved_at = NULL,
+                    serving_user_id = NULL,
+                    serve_status = 'none'
+                WHERE id = ?
+            ");
+            $resetTable->execute([$tableId]);
+
+            $pdo->commit();
+        } catch (Exception $inner) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $inner;
+        }
+
+        echo json_encode([
+            'success' => true,
+            'table' => fetchTableById($pdo, $tableId),
+            'message' => 'Service finished. Table reset to default state.',
+        ]);
+        exit();
+    }
+
     if (!$isAdmin) {
         echo json_encode(['success' => false, 'error' => 'Only administrators can manage tables.']);
         exit();
