@@ -33,6 +33,7 @@ $tableId = isset($data['table_id']) && $data['table_id'] !== '' && $data['table_
     : null;
 $customerName = isset($data['customer_name']) ? trim((string)$data['customer_name']) : '';
 $customerContact = isset($data['customer_contact']) ? trim((string)$data['customer_contact']) : '';
+$tableBookingId = null;
 
 if (mb_strlen($customerName) > 120) {
     $customerName = mb_substr($customerName, 0, 120);
@@ -110,15 +111,29 @@ try {
             $tableId = null;
         } else {
             $tableCheck = $pdo->prepare("
-                SELECT id FROM restaurant_tables
-                WHERE id = ? AND status = 'Active'
+                SELECT
+                    rt.id,
+                    tb.id AS booking_id
+                FROM restaurant_tables rt
+                LEFT JOIN table_bookings tb
+                    ON tb.table_id = rt.id
+                   AND tb.status = 'open'
+                WHERE rt.id = ?
+                  AND rt.status = 'Active'
                 LIMIT 1
             ");
             $tableCheck->execute([$tableId]);
+            $table = $tableCheck->fetch();
 
-            if (!$tableCheck->fetch()) {
+            if (!$table) {
                 throw new Exception('Selected table is not available.');
             }
+
+            if (empty($table['booking_id'])) {
+                throw new Exception('Book the selected table with a package before adding extra orders to it.');
+            }
+
+            $tableBookingId = (int)$table['booking_id'];
         }
     }
 
@@ -128,14 +143,15 @@ try {
 
     $saleStmt = $pdo->prepare("
         INSERT INTO sales
-            (user_id, table_id, customer_name, customer_contact, total_amount, discount, tax, final_amount, payment_method)
+            (user_id, table_id, table_booking_id, customer_name, customer_contact, total_amount, discount, tax, final_amount, payment_method)
         VALUES
-            (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ");
 
     $saleStmt->execute([
         (int)$_SESSION['user_id'],
         $tableId,
+        $tableBookingId,
         $customerName !== '' ? $customerName : null,
         $customerContact !== '' ? $customerContact : null,
         $calculatedTotal,

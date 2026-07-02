@@ -345,6 +345,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 $customerContact,
                 (int)$_SESSION["user_id"]
             ]);
+            $bookingId = (int)$pdo->lastInsertId();
+
+            $linkPackageSale = $pdo->prepare("UPDATE sales SET table_booking_id = ? WHERE id = ?");
+            $linkPackageSale->execute([$bookingId, $saleId]);
 
             $reserveStmt = $pdo->prepare("
                 UPDATE restaurant_tables
@@ -381,11 +385,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 SELECT id
                 FROM sales
                 WHERE table_id = ?
-                  AND created_at >= ?
+                  AND (id = ? OR created_at >= ?)
                 ORDER BY created_at ASC
             ");
             $saleIdsStmt->execute([
                 (int)$booking["table_id"],
+                (int)$booking["sale_id"],
                 $booking["booked_at"]
             ]);
             $closedSaleIds = array_map("intval", array_column($saleIdsStmt->fetchAll(), "id"));
@@ -397,10 +402,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 UPDATE sales
                 SET table_id = NULL
                 WHERE table_id = ?
-                  AND created_at >= ?
+                  AND (id = ? OR created_at >= ?)
             ");
             $unlinkSales->execute([
                 (int)$booking["table_id"],
+                (int)$booking["sale_id"],
                 $booking["booked_at"]
             ]);
 
@@ -480,7 +486,10 @@ $tablesStmt = $pdo->query("
         INNER JOIN table_bookings open_tb
             ON open_tb.table_id = s.table_id
            AND open_tb.status = 'open'
-           AND s.created_at >= open_tb.booked_at
+           AND (
+                s.id = open_tb.sale_id
+                OR s.created_at >= open_tb.booked_at
+           )
         WHERE s.table_id IS NOT NULL
         GROUP BY s.table_id
     ) stats ON stats.table_id = rt.id AND tb.id IS NOT NULL

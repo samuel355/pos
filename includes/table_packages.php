@@ -51,6 +51,11 @@ function ensureTablePackageSchema(PDO $pdo): void
         $pdo->exec("ALTER TABLE sales ADD COLUMN customer_contact VARCHAR(50) DEFAULT NULL AFTER customer_name");
     }
 
+    if (tableExists($pdo, "sales") && !tableColumnExists($pdo, "sales", "table_booking_id")) {
+        $pdo->exec("ALTER TABLE sales ADD COLUMN table_booking_id INT DEFAULT NULL AFTER table_id");
+        $pdo->exec("ALTER TABLE sales ADD KEY table_booking_id (table_booking_id)");
+    }
+
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS table_packages (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -111,6 +116,21 @@ function ensureTablePackageSchema(PDO $pdo): void
             FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ");
+
+    if (tableExists($pdo, "sales") && tableExists($pdo, "table_bookings") && tableColumnExists($pdo, "sales", "table_booking_id")) {
+        $pdo->exec("
+            UPDATE sales s
+            INNER JOIN table_bookings tb
+                ON s.id = tb.sale_id
+                OR (
+                    s.table_id = tb.table_id
+                    AND s.created_at >= tb.booked_at
+                    AND (tb.closed_at IS NULL OR s.created_at <= tb.closed_at)
+                )
+            SET s.table_booking_id = tb.id
+            WHERE s.table_booking_id IS NULL
+        ");
+    }
 
 }
 

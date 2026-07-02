@@ -617,9 +617,30 @@ $summary = $summaryStmt->fetch();
         modal.classList.add('show');
     }
 
-    function openReceiptModal(saleId) {
-        openReceiptModalByUrl('Receipt No.: ' + saleId, 'receipt.php?' + new URLSearchParams({ id: saleId, embedded: '1' }).toString());
-    }
+	    function openReceiptModal(saleId) {
+	        openReceiptModalByUrl('Receipt No.: ' + saleId, 'receipt.php?' + new URLSearchParams({ id: saleId, embedded: '1' }).toString());
+	    }
+
+	    function openLinkedReceipt(saleId, linkedSaleIds) {
+	        const ids = Array.isArray(linkedSaleIds)
+	            ? linkedSaleIds.map(function (id) { return Number(id); }).filter(function (id) { return id > 0; })
+	            : [];
+
+	        if (ids.length > 1) {
+	            openReceiptModalByUrl(
+	                'Table Bill - ' + ids.length + ' orders combined',
+	                'receipt.php?' + new URLSearchParams({ ids: ids.join(','), embedded: '1' }).toString()
+	            );
+	            return;
+	        }
+
+	        openReceiptModal(saleId);
+	    }
+
+	    async function fetchSaleDetails(saleId) {
+	        const response = await fetch('api/get_sale.php?id=' + encodeURIComponent(saleId));
+	        return response.json();
+	    }
 
     function closeReceiptModal() {
         const modal = document.getElementById('receiptModalBackdrop');
@@ -830,25 +851,30 @@ $summary = $summaryStmt->fetch();
 
                 title.innerText = saleId;
                 subtitle.innerText = 'Loading sale details...';
-                receiptBtn.dataset.saleId = saleId;
+	                receiptBtn.dataset.saleId = saleId;
+	                receiptBtn.dataset.linkedSaleIds = '';
                 body.innerHTML = '<div class="text-center py-5 text-muted"><div class="spinner-border text-primary mb-3" role="status" aria-hidden="true"></div><div>Loading sale details...</div></div>';
 
                 const modal = new bootstrap.Modal(document.getElementById('viewSaleModal'));
                 modal.show();
 
                 try {
-                    const response = await fetch('api/get_sale.php?id=' + encodeURIComponent(saleId));
-                    const result = await response.json();
+	                    const result = await fetchSaleDetails(saleId);
 
                     if (!result.success) {
                         body.innerHTML = '<div class="alert alert-danger mb-0">' + (result.error || 'Unable to load sale.') + '</div>';
                         return;
                     }
 
-                    const sale = result.sale;
-                    const items = result.items;
-                    const packageItems = result.package_items || [];
-                    subtitle.innerText = (sale.payment_method || 'Cash') + ' · ' + sale.created_at;
+	                    const sale = result.sale;
+	                    const items = result.bill_items || result.items;
+	                    const billSummary = result.bill_summary || sale;
+	                    const linkedSaleIds = result.linked_sale_ids || [sale.id];
+	                    const packageItems = result.package_items || [];
+	                    receiptBtn.dataset.linkedSaleIds = linkedSaleIds.join(',');
+	                    subtitle.innerText = linkedSaleIds.length > 1
+	                        ? (sale.payment_method || 'Cash') + ' · Table bill with ' + linkedSaleIds.length + ' orders'
+	                        : (sale.payment_method || 'Cash') + ' · ' + sale.created_at;
 
                     let rows = `
                         <div class="sale-item-row sale-item-head mb-2">
@@ -957,35 +983,44 @@ $summary = $summaryStmt->fetch();
                     </div>
 
                     <div class="mb-4">
-                        <div class="d-flex justify-content-between align-items-center mb-3">
-                            <h6 class="mb-0">Sale Items</h6>
-                            <span class="badge bg-light text-muted border">${items.length} item row(s)</span>
-                        </div>
+	                        <div class="d-flex justify-content-between align-items-center mb-3">
+	                            <h6 class="mb-0">${linkedSaleIds.length > 1 ? 'Table Bill Items' : 'Sale Items'}</h6>
+	                            <span class="badge bg-light text-muted border">${items.length} item row(s)</span>
+	                        </div>
                         ${rows}
                     </div>
 
                     <div class="row g-3 justify-content-end">
                         <div class="col-md-5">
                             <div class="sale-summary-card bg-white">
-                                <div class="d-flex justify-content-between mb-2">
-                                    <span class="text-muted">Subtotal</span>
-                                    <strong>${money(sale.total_amount)}</strong>
-                                </div>
-                                <div class="d-flex justify-content-between mb-2">
-                                    <span class="text-muted">Discount</span>
-                                    <strong>${money(sale.discount)}</strong>
-                                </div>
-                                <div class="d-flex justify-content-between mb-2">
-                                    <span class="text-muted">Tax</span>
-                                    <strong>${money(sale.tax)}</strong>
-                                </div>
-                                <hr>
-                                <div class="d-flex justify-content-between fs-16 text-primary">
-                                    <span class="fw-semibold">Total</span>
-                                    <strong>${money(sale.final_amount)}</strong>
-                                </div>
-                            </div>
-                        </div>
+	                                <div class="d-flex justify-content-between mb-2">
+	                                    <span class="text-muted">Package Amount</span>
+	                                    <strong>${money(billSummary.package_amount || 0)}</strong>
+	                                </div>
+	                                <div class="d-flex justify-content-between mb-2">
+	                                    <span class="text-muted">Additional Order Amount</span>
+	                                    <strong>${money(billSummary.additional_amount || 0)}</strong>
+	                                </div>
+	                                <div class="d-flex justify-content-between mb-2">
+	                                    <span class="text-muted">Subtotal</span>
+	                                    <strong>${money(billSummary.total_amount)}</strong>
+	                                </div>
+	                                <div class="d-flex justify-content-between mb-2">
+	                                    <span class="text-muted">Discount</span>
+	                                    <strong>${money(billSummary.discount)}</strong>
+	                                </div>
+	                                <div class="d-flex justify-content-between mb-2">
+	                                    <span class="text-muted">Tax</span>
+	                                    <strong>${money(billSummary.tax)}</strong>
+	                                </div>
+	                                <hr>
+	                                <div class="d-flex justify-content-between fs-16 text-primary">
+	                                    <span class="fw-semibold">Total</span>
+	                                    <strong>${money(billSummary.final_amount)}</strong>
+	                                </div>
+	                                ${linkedSaleIds.length > 1 ? '<div class="text-muted fs-sm mt-2">Includes receipts: ' + linkedSaleIds.join(', ') + '</div>' : ''}
+	                            </div>
+	                        </div>
                     </div>
                 `;
                 } catch (error) {
@@ -994,17 +1029,32 @@ $summary = $summaryStmt->fetch();
             });
         });
 
-        document.querySelectorAll('.print-sale-btn').forEach(function (button) {
-            button.addEventListener('click', function () {
-                openReceiptModal(this.dataset.saleId);
-            });
-        });
+	        document.querySelectorAll('.print-sale-btn').forEach(function (button) {
+	            button.addEventListener('click', async function () {
+	                const saleId = this.dataset.saleId;
+	                try {
+	                    const result = await fetchSaleDetails(saleId);
+	                    if (result.success) {
+	                        openLinkedReceipt(saleId, result.linked_sale_ids || [saleId]);
+	                        return;
+	                    }
+	                } catch (error) {
+	                    // Fall back to the single receipt below.
+	                }
 
-        document.getElementById('viewSaleReceiptBtn').addEventListener('click', function () {
-            if (this.dataset.saleId) {
-                openReceiptModal(this.dataset.saleId);
-            }
-        });
+	                openReceiptModal(saleId);
+	            });
+	        });
+
+	        document.getElementById('viewSaleReceiptBtn').addEventListener('click', function () {
+	            if (this.dataset.saleId) {
+	                const linkedIds = (this.dataset.linkedSaleIds || '')
+	                    .split(',')
+	                    .map(function (id) { return Number(id); })
+	                    .filter(function (id) { return id > 0; });
+	                openLinkedReceipt(this.dataset.saleId, linkedIds);
+	            }
+	        });
 
         document.getElementById('closeReceiptModalBtn').addEventListener('click', closeReceiptModal);
         document.getElementById('printReceiptBtn').addEventListener('click', printReceiptFromModal);

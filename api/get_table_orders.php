@@ -18,7 +18,27 @@ if ($tableId <= 0) {
 }
 
 try {
-    $tableStmt = $pdo->prepare('SELECT id, name, capacity, status FROM restaurant_tables WHERE id = ?');
+    $tableStmt = $pdo->prepare('
+        SELECT
+            rt.id,
+            rt.name,
+            rt.capacity,
+            rt.status,
+            tb.id AS booking_id,
+            tb.sale_id AS booking_sale_id,
+            tb.booked_at,
+            tb.customer_name,
+            tb.customer_contact,
+            tp.name AS package_name,
+            tp.price AS package_price
+        FROM restaurant_tables rt
+        LEFT JOIN table_bookings tb
+            ON tb.table_id = rt.id
+           AND tb.status = "open"
+        LEFT JOIN table_packages tp ON tp.id = tb.package_id
+        WHERE rt.id = ?
+        LIMIT 1
+    ');
     $tableStmt->execute([$tableId]);
     $table = $tableStmt->fetch();
 
@@ -26,6 +46,12 @@ try {
         echo json_encode(['success' => false, 'error' => 'Table not found.']);
         exit();
     }
+
+    $hasOpenBooking = !empty($table['booking_id']);
+    $orderTimeFilter = $hasOpenBooking
+        ? 'AND (s.id = ? OR s.created_at >= ?)'
+        : 'AND DATE(s.created_at) = CURDATE()';
+    $orderParams = $hasOpenBooking ? [$tableId, (int)$table['booking_sale_id'], $table['booked_at']] : [$tableId];
 
     $ordersStmt = $pdo->prepare("
         SELECT
@@ -37,11 +63,11 @@ try {
         FROM sales s
         LEFT JOIN sale_items si ON si.sale_id = s.id
         WHERE s.table_id = ?
-          AND DATE(s.created_at) = CURDATE()
+          $orderTimeFilter
         GROUP BY s.id
         ORDER BY s.created_at ASC
     ");
-    $ordersStmt->execute([$tableId]);
+    $ordersStmt->execute($orderParams);
     $orders = $ordersStmt->fetchAll();
 
     $itemsStmt = $pdo->prepare("
@@ -55,10 +81,10 @@ try {
         INNER JOIN sales s ON s.id = si.sale_id
         INNER JOIN products p ON p.id = si.product_id
         WHERE s.table_id = ?
-          AND DATE(s.created_at) = CURDATE()
+          $orderTimeFilter
         ORDER BY s.created_at ASC, si.id ASC
     ");
-    $itemsStmt->execute([$tableId]);
+    $itemsStmt->execute($orderParams);
     $allItems = $itemsStmt->fetchAll();
 
     $itemsBySale = [];

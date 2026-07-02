@@ -46,13 +46,19 @@ function tableStatsQuery()
         LEFT JOIN table_packages tp ON tp.id = tb.package_id
         LEFT JOIN (
             SELECT
-                table_id,
+                s.table_id,
                 COUNT(*) AS order_count,
-                SUM(final_amount) AS total_amount
-            FROM sales
-            WHERE table_id IS NOT NULL
-              AND DATE(created_at) = CURDATE()
-            GROUP BY table_id
+                SUM(s.final_amount) AS total_amount
+            FROM sales s
+            INNER JOIN table_bookings open_tb
+                ON open_tb.table_id = s.table_id
+               AND open_tb.status = 'open'
+               AND (
+                    s.id = open_tb.sale_id
+                    OR s.created_at >= open_tb.booked_at
+               )
+            WHERE s.table_id IS NOT NULL
+            GROUP BY s.table_id
         ) stats ON stats.table_id = rt.id
     ";
 }
@@ -123,6 +129,10 @@ try {
                 $customerContact,
                 $userId,
             ]);
+            $bookingId = (int)$pdo->lastInsertId();
+
+            $linkPackageSale = $pdo->prepare("UPDATE sales SET table_booking_id = ? WHERE id = ?");
+            $linkPackageSale->execute([$bookingId, $saleId]);
 
             $reserveStmt = $pdo->prepare("
                 UPDATE restaurant_tables
@@ -140,11 +150,12 @@ try {
         }
 
         echo json_encode([
-            'success' => true,
-            'table' => fetchTableById($pdo, $tableId),
-            'sale_id' => $saleId,
-            'message' => 'Table booked and package sale created.',
-        ]);
+                'success' => true,
+                'table' => fetchTableById($pdo, $tableId),
+                'sale_id' => $saleId,
+                'booking_id' => $bookingId,
+                'message' => 'Table booked and package sale created.',
+            ]);
         exit();
     }
 
@@ -155,7 +166,7 @@ try {
             throw new Exception('Invalid table ID.');
         }
 
-        $stmt = $pdo->prepare("SELECT id, table_id, booked_at FROM table_bookings WHERE table_id = ? AND status = 'open' LIMIT 1");
+        $stmt = $pdo->prepare("SELECT id, table_id, sale_id, booked_at FROM table_bookings WHERE table_id = ? AND status = 'open' LIMIT 1");
         $stmt->execute([$tableId]);
         $booking = $stmt->fetch();
 
@@ -173,10 +184,10 @@ try {
                 SELECT id
                 FROM sales
                 WHERE table_id = ?
-                  AND created_at >= ?
+                  AND (id = ? OR created_at >= ?)
                 ORDER BY created_at ASC
             ");
-            $saleIdsStmt->execute([$tableId, $booking['booked_at']]);
+            $saleIdsStmt->execute([$tableId, (int)$booking['sale_id'], $booking['booked_at']]);
             $closedSaleIds = array_map('intval', array_column($saleIdsStmt->fetchAll(), 'id'));
 
             $close = $pdo->prepare("UPDATE table_bookings SET status = 'closed', closed_at = NOW() WHERE id = ?");
@@ -186,9 +197,9 @@ try {
                 UPDATE sales
                 SET table_id = NULL
                 WHERE table_id = ?
-                  AND created_at >= ?
+                  AND (id = ? OR created_at >= ?)
             ');
-            $unlinkSales->execute([$tableId, $booking['booked_at']]);
+            $unlinkSales->execute([$tableId, (int)$booking['sale_id'], $booking['booked_at']]);
 
             $resetTable = $pdo->prepare("
                 UPDATE restaurant_tables

@@ -34,6 +34,8 @@ try {
             rt.name AS table_name,
             COALESCE(s.customer_name, tb.customer_name) AS customer_name,
             COALESCE(s.customer_contact, tb.customer_contact) AS customer_contact,
+            tb.id AS booking_id,
+            tb.sale_id AS booking_sale_id,
             tb.booked_at,
             tb.closed_at,
             tp.id AS package_id,
@@ -44,7 +46,8 @@ try {
         FROM sales s
         LEFT JOIN users u ON s.user_id = u.id
         LEFT JOIN table_bookings tb
-            ON tb.sale_id = s.id
+            ON tb.id = s.table_booking_id
+            OR tb.sale_id = s.id
             OR (
                 s.table_id IS NOT NULL
                 AND tb.table_id = s.table_id
@@ -80,6 +83,82 @@ try {
     $stmt->execute([$saleId]);
     $items = $stmt->fetchAll();
 
+    $linkedSaleIds = [$saleId];
+    $billItems = $items;
+    $billSummary = [
+        "total_amount" => (float)$sale["total_amount"],
+        "package_amount" => !empty($sale["package_id"]) ? (float)$sale["total_amount"] : 0,
+        "additional_amount" => !empty($sale["package_id"]) ? 0 : (float)$sale["total_amount"],
+        "discount" => (float)$sale["discount"],
+        "tax" => (float)$sale["tax"],
+        "final_amount" => (float)$sale["final_amount"],
+        "sale_count" => 1
+    ];
+
+    if (!empty($sale["booking_id"])) {
+        $linkedSalesStmt = $pdo->prepare("
+            SELECT id
+            FROM sales
+            WHERE table_booking_id = ?
+               OR id = ?
+               OR id = ?
+               OR (
+                    table_id = ?
+                    AND created_at >= ?
+                    AND (? IS NULL OR created_at <= ?)
+               )
+            ORDER BY created_at ASC, id ASC
+        ");
+        $linkedSalesStmt->execute([
+            (int)$sale["booking_id"],
+            (int)$sale["id"],
+            (int)$sale["booking_sale_id"],
+            (int)($sale["table_id"] ?? 0),
+            $sale["booked_at"],
+            $sale["closed_at"],
+            $sale["closed_at"]
+        ]);
+        $linkedSaleIds = array_map("intval", array_column($linkedSalesStmt->fetchAll(), "id"));
+
+        if (empty($linkedSaleIds)) {
+            $linkedSaleIds = [$saleId];
+        }
+
+        $placeholders = implode(",", array_fill(0, count($linkedSaleIds), "?"));
+
+        $billItemsStmt = $pdo->prepare("
+            SELECT
+                si.*,
+                p.name,
+                s.created_at AS sale_created_at
+            FROM sale_items si
+            INNER JOIN sales s ON s.id = si.sale_id
+            LEFT JOIN products p ON si.product_id = p.id
+            WHERE si.sale_id IN ($placeholders)
+            ORDER BY s.created_at ASC, si.id ASC
+        ");
+        $billItemsStmt->execute($linkedSaleIds);
+        $billItems = $billItemsStmt->fetchAll();
+
+        $summaryStmt = $pdo->prepare("
+            SELECT
+                COALESCE(SUM(total_amount), 0) AS total_amount,
+                COALESCE(SUM(CASE WHEN id = ? THEN total_amount ELSE 0 END), 0) AS package_amount,
+                COALESCE(SUM(CASE WHEN id <> ? THEN total_amount ELSE 0 END), 0) AS additional_amount,
+                COALESCE(SUM(discount), 0) AS discount,
+                COALESCE(SUM(tax), 0) AS tax,
+                COALESCE(SUM(final_amount), 0) AS final_amount,
+                COUNT(*) AS sale_count
+            FROM sales
+            WHERE id IN ($placeholders)
+        ");
+        $summaryStmt->execute(array_merge([
+            (int)$sale["booking_sale_id"],
+            (int)$sale["booking_sale_id"]
+        ], $linkedSaleIds));
+        $billSummary = $summaryStmt->fetch();
+    }
+
     $packageItems = [];
     if (!empty($sale["package_id"])) {
         $packageItemsStmt = $pdo->prepare("
@@ -96,6 +175,9 @@ try {
         "success" => true,
         "sale" => $sale,
         "items" => $items,
+        "bill_items" => $billItems,
+        "bill_summary" => $billSummary,
+        "linked_sale_ids" => $linkedSaleIds,
         "package_items" => $packageItems
     ]);
 } catch (Exception $e) {

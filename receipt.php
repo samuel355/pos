@@ -483,6 +483,27 @@ if ($isBatch) {
         <?php foreach ($receipts as $receipt): ?>
             <?php $sale = $receipt["sale"]; ?>
             <?php $items = $receipt["items"]; ?>
+            <?php
+            $packageLineItems = [];
+            $extraLineItems = [];
+
+            foreach ($items as $lineItem) {
+              $lineProductId = (int) ($lineItem["product_id"] ?? 0);
+
+              if ($lineProductId > 0 && !empty($packageItemsByProductId[$lineProductId])) {
+                $packageLineItems[] = $lineItem;
+              } else {
+                $extraLineItems[] = $lineItem;
+              }
+            }
+
+            $packageAmount = array_reduce($packageLineItems, function ($total, $lineItem) {
+              return $total + (float) $lineItem["subtotal"];
+            }, 0);
+            $additionalAmount = array_reduce($extraLineItems, function ($total, $lineItem) {
+              return $total + (float) $lineItem["subtotal"];
+            }, 0);
+            ?>
             <?php foreach ($copies as $copyLabel): ?>
                 <div class="receipt-copy">
                     <div class="text-center">
@@ -541,7 +562,14 @@ if ($isBatch) {
                         </tr>
                         </thead>
                         <tbody>
-                        <?php foreach ($items as $item): ?>
+                        <?php if (!empty($packageLineItems)): ?>
+                            <tr>
+                                <td colspan="3" class="small muted" style="padding-top: 6px;">
+                                    <strong>Booked Package</strong>
+                                </td>
+                            </tr>
+                        <?php endif; ?>
+                        <?php foreach ($packageLineItems as $item): ?>
                             <tr>
                                 <td>
                                     <?php echo e($item["name"]); ?>
@@ -579,12 +607,45 @@ if ($isBatch) {
                                 ); ?></td>
                             </tr>
                         <?php endforeach; ?>
+                        <?php if (!empty($extraLineItems)): ?>
+                            <tr>
+                                <td colspan="3" class="small muted" style="padding-top: 8px;">
+                                    <strong>Additional Orders</strong>
+                                </td>
+                            </tr>
+                        <?php endif; ?>
+                        <?php foreach ($extraLineItems as $item): ?>
+                            <tr>
+                                <td>
+                                    <?php echo e($item["name"]); ?>
+                                    <div class="small muted">@ <?php echo money(
+                                      $item["unit_price"],
+                                    ); ?></div>
+                                </td>
+                                <td align="center"><?php echo (int) $item[
+                                  "quantity"
+                                ]; ?></td>
+                                <td class="text-end"><?php echo money(
+                                  $item["subtotal"],
+                                ); ?></td>
+                            </tr>
+                        <?php endforeach; ?>
                         </tbody>
                     </table>
 
                     <hr>
 
                     <div class="small">
+                        <?php if ($isBatch || $packageAmount > 0): ?>
+                        <div class="d-flex">
+                            <span>Package Amount:</span>
+                            <span><?php echo money($packageAmount); ?></span>
+                        </div>
+                        <div class="d-flex">
+                            <span>Additional Orders:</span>
+                            <span><?php echo money($additionalAmount); ?></span>
+                        </div>
+                        <?php endif; ?>
                         <div class="d-flex">
                             <span>Subtotal:</span>
                             <span><?php echo money($sale["total_amount"]); ?></span>
