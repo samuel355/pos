@@ -4,6 +4,7 @@ session_start();
 header('Content-Type: application/json');
 
 require_once '../config/db.php';
+require_once '../includes/table_packages.php';
 
 if (!isset($_SESSION['user_id'])) {
     echo json_encode(['success' => false, 'error' => 'Unauthorized. Please login again.']);
@@ -13,6 +14,8 @@ if (!isset($_SESSION['user_id'])) {
 $isAdmin = isset($_SESSION['role']) && $_SESSION['role'] === 'admin';
 $userId = (int)$_SESSION['user_id'];
 $method = $_SERVER['REQUEST_METHOD'];
+
+ensureTablePackageSchema($pdo);
 
 function tableStatsQuery()
 {

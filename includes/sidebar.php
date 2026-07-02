@@ -87,6 +87,28 @@ function ariaCurrent($page, $currentPage)
                 </li>
 
                 <li class="nav-item">
+                    <a href="tables.php"
+                        class="nav-link <?php echo isActiveMenu('tables.php', $currentPage); ?>"
+                        <?php echo ariaCurrent('tables.php', $currentPage); ?>>
+                        <span class="icons">
+                            <i class="ri-vip-crown-line"></i>
+                        </span>
+                        <span class="menu-text">Club Tables</span>
+                    </a>
+                </li>
+
+                <li class="nav-item">
+                    <a href="packages.php"
+                        class="nav-link <?php echo isActiveMenu('packages.php', $currentPage); ?>"
+                        <?php echo ariaCurrent('packages.php', $currentPage); ?>>
+                        <span class="icons">
+                            <i class="ri-gift-line"></i>
+                        </span>
+                        <span class="menu-text">Packages</span>
+                    </a>
+                </li>
+
+                <li class="nav-item">
                     <a href="staff.php"
                         class="nav-link <?php echo isActiveMenu('staff.php', $currentPage); ?>"
                         <?php echo ariaCurrent('staff.php', $currentPage); ?>>

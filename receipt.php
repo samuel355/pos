@@ -1,6 +1,9 @@
 <?php
 require_once "includes/auth_check.php";
 require_once "config/db.php";
+require_once "includes/table_packages.php";
+
+ensureTablePackageSchema($pdo);
 
 $singleSaleId = isset($_GET["id"]) ? (int) $_GET["id"] : 0;
 $idsParam = isset($_GET["ids"]) ? trim((string) $_GET["ids"]) : "";
@@ -53,6 +56,39 @@ $stmt = $pdo->prepare("
 ");
 $stmt->execute($saleIds);
 $itemsRows = $stmt->fetchAll();
+
+$packageProductIds = [];
+foreach ($itemsRows as $itemRow) {
+  if (!empty($itemRow["product_id"])) {
+    $packageProductIds[] = (int) $itemRow["product_id"];
+  }
+}
+$packageProductIds = array_values(array_unique($packageProductIds));
+
+$packageItemsByProductId = [];
+if (!empty($packageProductIds)) {
+  $packagePlaceholders = implode(",", array_fill(0, count($packageProductIds), "?"));
+  $packageStmt = $pdo->prepare("
+      SELECT
+          tp.product_id,
+          tpi.item_name,
+          tpi.item_type,
+          tpi.quantity
+      FROM table_packages tp
+      INNER JOIN table_package_items tpi ON tpi.package_id = tp.id
+      WHERE tp.product_id IN ($packagePlaceholders)
+      ORDER BY tp.id ASC, tpi.display_order ASC
+  ");
+  $packageStmt->execute($packageProductIds);
+
+  foreach ($packageStmt->fetchAll() as $packageItem) {
+    $productId = (int) $packageItem["product_id"];
+    if (!isset($packageItemsByProductId[$productId])) {
+      $packageItemsByProductId[$productId] = [];
+    }
+    $packageItemsByProductId[$productId][] = $packageItem;
+  }
+}
 
 $itemsBySaleId = [];
 foreach ($itemsRows as $itemRow) {
@@ -379,6 +415,28 @@ $isBatch = count($receipts) > 1;
                                     <div class="small muted">@ <?php echo money(
                                       $item["unit_price"],
                                     ); ?></div>
+                                    <?php $includedItems = $packageItemsByProductId[(int) $item["product_id"]] ?? []; ?>
+                                    <?php if (!empty($includedItems)): ?>
+                                        <div class="small muted" style="margin-top: 6px;">
+                                            <strong>Content</strong>
+                                            <table style="margin-top: 3px;">
+                                                <thead>
+                                                <tr>
+                                                    <th align="left" style="width: 34px;">qty</th>
+                                                    <th align="left">product name</th>
+                                                </tr>
+                                                </thead>
+                                                <tbody>
+                                                <?php foreach ($includedItems as $included): ?>
+                                                    <tr>
+                                                        <td style="width: 34px;"><?php echo (int) $included["quantity"]; ?></td>
+                                                        <td><?php echo e($included["item_name"]); ?></td>
+                                                    </tr>
+                                                <?php endforeach; ?>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    <?php endif; ?>
                                 </td>
                                 <td align="center"><?php echo (int) $item[
                                   "quantity"

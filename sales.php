@@ -1,6 +1,9 @@
 <?php
 require_once "includes/auth_check.php";
 require_once "config/db.php";
+require_once "includes/table_packages.php";
+
+ensureTablePackageSchema($pdo);
 
 $message = "";
 $error = "";
@@ -135,7 +138,7 @@ $where = "";
 
 if ($search !== "") {
     $where = "
-        WHERE 
+        WHERE
             s.id LIKE ?
             OR u.username LIKE ?
             OR s.payment_method LIKE ?
@@ -146,16 +149,25 @@ if ($search !== "") {
 }
 
 $stmt = $pdo->prepare("
-    SELECT 
+    SELECT
         s.*,
         u.username,
-        COUNT(si.id) AS item_count,
-        COALESCE(SUM(si.quantity), 0) AS total_quantity
+        (
+            SELECT tb.customer_name
+            FROM table_bookings tb
+            WHERE tb.sale_id = s.id
+               OR (
+                    s.table_id IS NOT NULL
+                    AND tb.table_id = s.table_id
+                    AND s.created_at >= tb.booked_at
+                    AND (tb.closed_at IS NULL OR s.created_at <= tb.closed_at)
+               )
+            ORDER BY tb.id DESC
+            LIMIT 1
+        ) AS customer_name
     FROM sales s
     LEFT JOIN users u ON s.user_id = u.id
-    LEFT JOIN sale_items si ON si.sale_id = s.id
     $where
-    GROUP BY s.id, u.username
     ORDER BY s.created_at DESC
 ");
 $stmt->execute($params);
@@ -174,6 +186,59 @@ $summary = $summaryStmt->fetch();
 
 <?php include "includes/header.php"; ?>
 <?php include "includes/sidebar.php"; ?>
+
+<style>
+    .sale-modal .modal-content {
+        overflow: hidden;
+        border: 0;
+        border-radius: 22px;
+        box-shadow: 0 30px 80px rgba(15, 23, 42, .22);
+    }
+
+    .sale-modal-header {
+        color: #ffffff;
+        background: linear-gradient(135deg, #ff762d, #f59e0b);
+        padding: 20px 22px;
+    }
+
+    .sale-summary-card {
+        border: 1px solid rgba(15, 23, 42, .08);
+        border-radius: 18px;
+        padding: 14px;
+        background: #f9fafb;
+    }
+
+    .sale-item-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 70px 110px 120px;
+        gap: 12px;
+        align-items: center;
+        padding: 12px 14px;
+        border: 1px solid rgba(15, 23, 42, .08);
+        border-radius: 14px;
+        background: #ffffff;
+    }
+
+    .sale-item-head {
+        color: #6b7280;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        background: #f9fafb;
+    }
+
+    @media (max-width: 767px) {
+        .sale-item-row {
+            grid-template-columns: 1fr 58px;
+        }
+
+        .sale-item-row .unit,
+        .sale-item-row .subtotal {
+            display: none;
+        }
+    }
+</style>
 
 <div class="page-heading mb-4 d-flex gap-2 flex-column flex-md-row align-items-md-center justify-content-between">
     <div>
@@ -242,7 +307,7 @@ $summary = $summaryStmt->fetch();
                    id="salesSearchInput"
                    class="form-control"
                    style="min-width: 260px;"
-                   placeholder="Search receipt no, cashier, payment...">
+                   placeholder="Search receipt no, cashier, customer, payment...">
 
             <select id="salesDatePreset" class="form-control" style="min-width: 160px;">
                 <option value="all">All Dates</option>
@@ -276,11 +341,10 @@ $summary = $summaryStmt->fetch();
                         <tr>
                             <th>Receipt</th>
                             <th>Cashier</th>
-                            <th>Items</th>
+                            <th>Customer</th>
                             <th>Payment</th>
                             <th>Subtotal</th>
                             <th>Discount</th>
-                            <th>Tax</th>
                             <th>Total</th>
                             <th>Date</th>
                             <th style="width: 230px;">Action</th>
@@ -294,6 +358,7 @@ $summary = $summaryStmt->fetch();
                             $saleSearchText = strtolower(
                                     'receipt no ' . $sale["id"] . ' receipt ' . $sale["id"] . ' ' .
                                     ($sale["username"] ?: "N/A") . ' ' .
+                                    ($sale["customer_name"] ?: "walk-in customer") . ' ' .
                                     ($sale["payment_method"] ?: "Cash") . ' ' .
                                     $sale["created_at"] . ' ' .
                                     $sale["final_amount"]
@@ -303,24 +368,18 @@ $summary = $summaryStmt->fetch();
                                 data-search="<?php echo e($saleSearchText); ?>"
                                 data-sale-date="<?php echo e($saleDateOnly); ?>">
                                 <td>
-                                    <strong>Receipt No.: <?php echo (int)$sale["id"]; ?></strong>
+                                    <strong><?php echo (int)$sale["id"]; ?></strong>
                                 </td>
 
                                 <td><?php echo e($sale["username"] ?: "N/A"); ?></td>
 
-                                <td>
-                                    <span class="badge bg-light text-body border">
-                                        <?php echo (int)$sale["total_quantity"]; ?> Qty
-                                    </span>
-                                </td>
+                                <td><?php echo e($sale["customer_name"] ?: "Walk-in Customer"); ?></td>
 
                                 <td><?php echo e($sale["payment_method"] ?: "Cash"); ?></td>
 
                                 <td><?php echo money($sale["total_amount"]); ?></td>
 
                                 <td><?php echo money($sale["discount"]); ?></td>
-
-                                <td><?php echo money($sale["tax"]); ?></td>
 
                                 <td class="fw-bold text-primary">
                                     <?php echo money($sale["final_amount"]); ?>
@@ -366,7 +425,7 @@ $summary = $summaryStmt->fetch();
                         <?php endforeach; ?>
 
                         <tr id="noFilteredSalesRow" class="d-none">
-                            <td colspan="10" class="text-center py-5">
+                            <td colspan="9" class="text-center py-5">
                                 <img src="./assets/no-order-CCjZwO4J.svg" alt="No sales" style="max-width: 110px;" class="mb-3">
                                 <h6 class="mb-1">No sales found</h6>
                                 <p class="text-muted mb-0">Try another receipt number, cashier, payment method, or date range.</p>
@@ -379,12 +438,15 @@ $summary = $summaryStmt->fetch();
     </div>
 </div>
 
-<div class="modal fade" id="viewSaleModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade sale-modal" id="viewSaleModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
-            <div class="modal-header">
-                <h6 class="modal-title" id="viewSaleTitle">Sale Details</h6>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            <div class="sale-modal-header d-flex justify-content-between align-items-start gap-3">
+                <div>
+                    <h5 class="mb-1" id="viewSaleTitle">Sale Details</h5>
+                    <p class="mb-0 opacity-75 fs-sm" id="viewSaleSubtitle">Review sale items, payment, and totals.</p>
+                </div>
+                <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">Close</button>
             </div>
 
             <div class="modal-body" id="viewSaleBody">
@@ -393,6 +455,7 @@ $summary = $summaryStmt->fetch();
 
             <div class="modal-footer">
                 <a href="#" target="_blank" id="viewSaleReceiptBtn" class="btn btn-primary">
+                    <i class="ri-printer-line me-1"></i>
                     Print Receipt
                 </a>
                 <button type="button" class="btn btn-light border" data-bs-dismiss="modal">
@@ -621,7 +684,7 @@ $summary = $summaryStmt->fetch();
                 const sale = JSON.parse(this.dataset.sale);
 
                 document.getElementById('editSaleId').value = sale.id;
-                document.getElementById('editSaleReceipt').value = 'Receipt No.: ' + sale.id;
+                document.getElementById('editSaleReceipt').value = sale.id;
                 document.getElementById('editSalePaymentMethod').value = sale.payment_method || 'Cash';
                 document.getElementById('editSaleDiscount').value = Number(sale.discount || 0).toFixed(2);
                 document.getElementById('editSaleTax').value = Number(sale.tax || 0).toFixed(2);
@@ -637,11 +700,13 @@ $summary = $summaryStmt->fetch();
                 const saleId = this.dataset.saleId;
                 const body = document.getElementById('viewSaleBody');
                 const title = document.getElementById('viewSaleTitle');
+                const subtitle = document.getElementById('viewSaleSubtitle');
                 const receiptBtn = document.getElementById('viewSaleReceiptBtn');
 
-                title.innerText = 'Sale Details - Receipt No.: ' + saleId;
+                title.innerText = saleId;
+                subtitle.innerText = 'Loading sale details...';
                 receiptBtn.href = 'receipt.php?id=' + encodeURIComponent(saleId);
-                body.innerHTML = '<div class="text-center py-4 text-muted">Loading...</div>';
+                body.innerHTML = '<div class="text-center py-5 text-muted"><div class="spinner-border text-primary mb-3" role="status" aria-hidden="true"></div><div>Loading sale details...</div></div>';
 
                 const modal = new bootstrap.Modal(document.getElementById('viewSaleModal'));
                 modal.show();
@@ -657,58 +722,144 @@ $summary = $summaryStmt->fetch();
 
                     const sale = result.sale;
                     const items = result.items;
+                    const packageItems = result.package_items || [];
+                    subtitle.innerText = (sale.payment_method || 'Cash') + ' · ' + sale.created_at;
 
-                    let rows = '';
+                    let rows = `
+                        <div class="sale-item-row sale-item-head mb-2">
+                            <span>Product</span>
+                            <span class="text-center">Qty</span>
+                            <span class="unit">Unit</span>
+                            <span class="subtotal text-end">Subtotal</span>
+                        </div>
+                    `;
 
                     items.forEach(function (item) {
                         rows += `
-                        <tr>
-                            <td>${item.name}</td>
-                            <td class="text-center">${item.quantity}</td>
-                            <td>${money(item.unit_price)}</td>
-                            <td class="text-end">${money(item.subtotal)}</td>
-                        </tr>
-                    `;
+                            <div class="sale-item-row mb-2">
+                                <div class="fw-semibold text-truncate">${item.name}</div>
+                                <div class="text-center">
+                                    <span class="badge bg-light text-body border">${item.quantity}</span>
+                                </div>
+                                <div class="unit text-muted">${money(item.unit_price)}</div>
+                                <div class="subtotal text-end fw-semibold">${money(item.subtotal)}</div>
+                            </div>
+                        `;
                     });
 
+                    let packageRows = '';
+
+                    if (packageItems.length === 0) {
+                        packageRows = '<div class="text-muted border rounded p-3 bg-light">No package items for this sale.</div>';
+                    } else {
+                        packageRows = `
+                            <div class="sale-item-row sale-item-head mb-2">
+                                <span>Product Name</span>
+                                <span class="text-center">Qty</span>
+                                <span class="unit">Type</span>
+                                <span class="subtotal text-end">Cost</span>
+                            </div>
+                        `;
+
+                        packageItems.forEach(function (item) {
+                            packageRows += `
+                                <div class="sale-item-row mb-2">
+                                    <div class="fw-semibold text-truncate">${item.item_name}</div>
+                                    <div class="text-center">
+                                        <span class="badge bg-light text-body border">${item.quantity}</span>
+                                    </div>
+                                    <div class="unit text-muted">${item.item_type || 'regular'}</div>
+                                    <div class="subtotal text-end fw-semibold">${money(item.unit_cost)}</div>
+                                </div>
+                            `;
+                        });
+                    }
+
                     body.innerHTML = `
-                    <div class="mb-3">
-                        <h6 class="mb-1">Receipt No.: ${sale.id}</h6>
-                        <p class="text-muted mb-0">Cashier: ${sale.username || 'N/A'} | Payment: ${sale.payment_method || 'Cash'}</p>
-                        <p class="text-muted mb-0">Date: ${sale.created_at}</p>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-3">
+                            <div class="sale-summary-card">
+                                <span class="text-muted fs-sm">Customer</span>
+                                <h6 class="mb-0">${sale.customer_name || 'Walk-in Customer'}</h6>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="sale-summary-card">
+                                <span class="text-muted fs-sm">Number</span>
+                                <h6 class="mb-0">${sale.customer_contact || 'N/A'}</h6>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="sale-summary-card">
+                                <span class="text-muted fs-sm">Cashier</span>
+                                <h6 class="mb-0">${sale.username || 'N/A'}</h6>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="sale-summary-card">
+                                <span class="text-muted fs-sm">Payment</span>
+                                <h6 class="mb-0">${sale.payment_method || 'Cash'}</h6>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="sale-summary-card">
+                                <span class="text-muted fs-sm">Package</span>
+                                <h6 class="mb-0">${sale.package_name || 'No package'}</h6>
+                                <div class="text-muted fs-sm">${sale.package_price ? money(sale.package_price) : '—'}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="sale-summary-card">
+                                <span class="text-muted fs-sm">Table</span>
+                                <h6 class="mb-0">${sale.table_name || 'No table'}</h6>
+                                <div class="text-muted fs-sm">${sale.package_tier || '—'}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="sale-summary-card">
+                                <span class="text-muted fs-sm">Date</span>
+                                <h6 class="mb-0 fs-sm">${sale.created_at}</h6>
+                            </div>
+                        </div>
                     </div>
 
-                    <div class="table-responsive">
-                        <table class="table table-sm table-hover align-middle">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>Product</th>
-                                    <th class="text-center">Qty</th>
-                                    <th>Unit</th>
-                                    <th class="text-end">Subtotal</th>
-                                </tr>
-                            </thead>
-                            <tbody>${rows}</tbody>
-                        </table>
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="mb-0">Package Items</h6>
+                            <span class="badge bg-light text-muted border">${packageItems.length} item row(s)</span>
+                        </div>
+                        ${packageRows}
                     </div>
 
-                    <div class="border rounded p-3 ms-auto" style="max-width: 320px;">
-                        <div class="d-flex justify-content-between">
-                            <span>Subtotal:</span>
-                            <strong>${money(sale.total_amount)}</strong>
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="mb-0">Sale Items</h6>
+                            <span class="badge bg-light text-muted border">${items.length} item row(s)</span>
                         </div>
-                        <div class="d-flex justify-content-between">
-                            <span>Discount:</span>
-                            <strong>${money(sale.discount)}</strong>
-                        </div>
-                        <div class="d-flex justify-content-between">
-                            <span>Tax:</span>
-                            <strong>${money(sale.tax)}</strong>
-                        </div>
-                        <hr>
-                        <div class="d-flex justify-content-between text-primary">
-                            <span>Total:</span>
-                            <strong>${money(sale.final_amount)}</strong>
+                        ${rows}
+                    </div>
+
+                    <div class="row g-3 justify-content-end">
+                        <div class="col-md-5">
+                            <div class="sale-summary-card bg-white">
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span class="text-muted">Subtotal</span>
+                                    <strong>${money(sale.total_amount)}</strong>
+                                </div>
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span class="text-muted">Discount</span>
+                                    <strong>${money(sale.discount)}</strong>
+                                </div>
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span class="text-muted">Tax</span>
+                                    <strong>${money(sale.tax)}</strong>
+                                </div>
+                                <hr>
+                                <div class="d-flex justify-content-between fs-16 text-primary">
+                                    <span class="fw-semibold">Total</span>
+                                    <strong>${money(sale.final_amount)}</strong>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 `;

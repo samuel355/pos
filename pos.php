@@ -1,8 +1,17 @@
 <?php
 require_once "includes/auth_check.php";
 require_once "config/db.php";
+require_once "includes/table_packages.php";
 
-$stmt = $pdo->query("SELECT * FROM categories WHERE status = 'Active' ORDER BY name ASC");
+ensureTablePackageSchema($pdo);
+
+$stmt = $pdo->query("
+    SELECT *
+    FROM categories
+    WHERE status = 'Active'
+      AND name <> 'Table Packages'
+    ORDER BY name ASC
+");
 $categories = $stmt->fetchAll();
 
 $stmt = $pdo->query("
@@ -11,6 +20,7 @@ $stmt = $pdo->query("
         c.name AS category_name
     FROM products p
     LEFT JOIN categories c ON p.category_id = c.id
+    WHERE c.name IS NULL OR c.name <> 'Table Packages'
     ORDER BY p.name ASC
 ");
 $products = $stmt->fetchAll();
