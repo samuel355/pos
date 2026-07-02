@@ -5,6 +5,10 @@ require_once "config/db.php";
 $message = "";
 $error = "";
 
+if (empty($_SESSION["csrf_token"])) {
+    $_SESSION["csrf_token"] = bin2hex(random_bytes(32));
+}
+
 function e($value) {
     return htmlspecialchars((string)$value, ENT_QUOTES, "UTF-8");
 }
@@ -66,6 +70,20 @@ function uploadProductImage($file) {
     }
 
     return "assets/uploads/products/" . $fileName;
+}
+
+function deleteUploadedProductImage($imagePath) {
+    $imagePath = (string)$imagePath;
+
+    if ($imagePath === "" || strpos($imagePath, "assets/uploads/products/") !== 0) {
+        return;
+    }
+
+    $fullPath = __DIR__ . "/" . $imagePath;
+
+    if (is_file($fullPath)) {
+        unlink($fullPath);
+    }
 }
 
 // Handle Add Category
@@ -245,30 +263,52 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["update_product"])) {
 }
 
 // Handle Delete Product
-if (isset($_GET["delete"])) {
-    $id = (int)$_GET["delete"];
+if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["delete_product"])) {
+    try {
+        $id = isset($_POST["product_id"]) ? (int)$_POST["product_id"] : 0;
+        $csrfToken = $_POST["csrf_token"] ?? "";
 
-    $stmt = $pdo->prepare("SELECT image_path FROM products WHERE id = ?");
-    $stmt->execute([$id]);
-    $productToDelete = $stmt->fetch();
-
-    $stmt = $pdo->prepare("DELETE FROM products WHERE id = ?");
-    $stmt->execute([$id]);
-
-    if ($productToDelete && !empty($productToDelete["image_path"])) {
-        $imagePath = $productToDelete["image_path"];
-
-        if (strpos($imagePath, "assets/uploads/products/") === 0) {
-            $fullPath = __DIR__ . "/" . $imagePath;
-
-            if (is_file($fullPath)) {
-                unlink($fullPath);
-            }
+        if (!hash_equals($_SESSION["csrf_token"], $csrfToken)) {
+            throw new Exception("Invalid delete request. Please refresh the page and try again.");
         }
-    }
 
-    header("Location: products.php?deleted=1");
-    exit;
+        if ($id <= 0) {
+            throw new Exception("Invalid product selected.");
+        }
+
+        $stmt = $pdo->prepare("SELECT id, name, image_path FROM products WHERE id = ? LIMIT 1");
+        $stmt->execute([$id]);
+        $productToDelete = $stmt->fetch();
+
+        if (!$productToDelete) {
+            throw new Exception("Product not found.");
+        }
+
+        $saleItemCountStmt = $pdo->prepare("SELECT COUNT(*) FROM sale_items WHERE product_id = ?");
+        $saleItemCountStmt->execute([$id]);
+
+        if ((int)$saleItemCountStmt->fetchColumn() > 0) {
+            throw new Exception("This product cannot be deleted because it already appears in sale history.");
+        }
+
+        $pdo->beginTransaction();
+
+        $stmt = $pdo->prepare("DELETE FROM products WHERE id = ?");
+        $stmt->execute([$id]);
+
+        $pdo->commit();
+
+        deleteUploadedProductImage($productToDelete["image_path"] ?? "");
+
+        header("Location: products.php?deleted=1");
+        exit;
+    } catch (Exception $ex) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
+        $error = $ex->getMessage();
+    }
 }
 
 if (isset($_GET["deleted"]) && $_GET["deleted"] === "1") {
@@ -291,6 +331,7 @@ $products = $stmt->fetchAll();
 
 <?php include "includes/header.php"; ?>
 <?php include "includes/sidebar.php"; ?>
+<link rel="stylesheet" href="./assets/sweetalert2-BQV-BGv0.css">
 
     <div class="page-heading mb-4 d-flex gap-2 flex-column flex-md-row align-items-md-center justify-content-between">
         <div>
@@ -408,9 +449,9 @@ $products = $stmt->fetchAll();
         <div class="card-header d-flex align-items-center justify-content-between gap-3">
             <h6 class="card-title mb-0">Product List</h6>
 
-            <span class="badge bg-light text-muted border">
-            <?php echo count($products); ?> Products
-        </span>
+            <span class="badge bg-light text-muted border" id="productResultCount">
+                <?php echo count($products); ?> Products
+            </span>
         </div>
 
         <div class="card-body">
@@ -423,6 +464,48 @@ $products = $stmt->fetchAll();
                     <p class="text-muted mb-0">Add your first product above.</p>
                 </div>
             <?php else: ?>
+                <div class="row g-3 align-items-end mb-4">
+                    <div class="col-md-5">
+                        <label for="productSearchInput" class="form-label">Search Products</label>
+                        <div class="position-relative">
+                            <i class="ri-search-line position-absolute top-50 start-0 translate-middle-y ms-3 text-muted"></i>
+                            <input type="search"
+                                   id="productSearchInput"
+                                   class="form-control ps-10"
+                                   placeholder="Search by name, category, ID, price, or stock...">
+                        </div>
+                    </div>
+
+                    <div class="col-md-3">
+                        <label for="productCategoryFilter" class="form-label">Category</label>
+                        <select id="productCategoryFilter" class="form-control">
+                            <option value="all">All Categories</option>
+                            <?php foreach ($categories as $cat): ?>
+                                <option value="<?php echo (int)$cat["id"]; ?>">
+                                    <?php echo e($cat["name"]); ?>
+                                </option>
+                            <?php endforeach; ?>
+                            <option value="uncategorized">Uncategorized</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-3">
+                        <label for="productStockFilter" class="form-label">Stock Status</label>
+                        <select id="productStockFilter" class="form-control">
+                            <option value="all">All Stock</option>
+                            <option value="in_stock">In stock</option>
+                            <option value="low_stock">Low stock</option>
+                            <option value="out_of_stock">Out of stock</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-1">
+                        <button type="button" class="btn btn-light border w-100" id="resetProductFilters">
+                            Reset
+                        </button>
+                    </div>
+                </div>
+
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0">
                         <thead class="table-light">
@@ -432,14 +515,27 @@ $products = $stmt->fetchAll();
                             <th>Category</th>
                             <th>Price</th>
                             <th>Stock</th>
-                            <th style="width: 120px;">Action</th>
+                            <th style="width: 180px;">Action</th>
                         </tr>
                         </thead>
 
                         <tbody>
                         <?php foreach ($products as $prod): ?>
-                            <?php $imagePath = normalizeImagePath($prod["image_path"] ?? ""); ?>
-                            <tr>
+                            <?php
+                                $imagePath = normalizeImagePath($prod["image_path"] ?? "");
+                                $stockQuantity = (int)$prod["stock_quantity"];
+                                $stockStatus = "in_stock";
+
+                                if ($stockQuantity <= 0) {
+                                    $stockStatus = "out_of_stock";
+                                } elseif ($stockQuantity <= 5) {
+                                    $stockStatus = "low_stock";
+                                }
+                            ?>
+                            <tr class="product-row"
+                                data-search="<?php echo e(strtolower(trim($prod["id"] . " " . $prod["name"] . " " . ($prod["category_name"] ?: "Uncategorized") . " " . $prod["price"] . " " . $prod["stock_quantity"]))); ?>"
+                                data-category="<?php echo $prod["category_id"] ? (int)$prod["category_id"] : "uncategorized"; ?>"
+                                data-stock="<?php echo e($stockStatus); ?>">
                                 <td>
                                     <?php if ($imagePath): ?>
                                         <img src="<?php echo e($imagePath); ?>" alt="<?php echo e($prod["name"]); ?>" style="width: 48px; height: 48px; object-fit: cover; border-radius: 10px;">
@@ -464,12 +560,12 @@ $products = $stmt->fetchAll();
                                 </td>
 
                                 <td>
-                                    <?php if ((int)$prod["stock_quantity"] <= 0): ?>
+                                    <?php if ($stockQuantity <= 0): ?>
                                         <span class="badge bg-danger">Out of stock</span>
-                                    <?php elseif ((int)$prod["stock_quantity"] <= 5): ?>
-                                        <span class="badge bg-warning"><?php echo (int)$prod["stock_quantity"]; ?> Low</span>
+                                    <?php elseif ($stockQuantity <= 5): ?>
+                                        <span class="badge bg-warning"><?php echo $stockQuantity; ?> Low</span>
                                     <?php else: ?>
-                                        <span class="badge bg-success"><?php echo (int)$prod["stock_quantity"]; ?></span>
+                                        <span class="badge bg-success"><?php echo $stockQuantity; ?></span>
                                     <?php endif; ?>
                                 </td>
 
@@ -502,17 +598,30 @@ $products = $stmt->fetchAll();
                                             Edit
                                         </button>
 
-                                        <a href="products.php?delete=<?php echo (int)$prod["id"]; ?>"
-                                           class="btn btn-sm btn-danger"
-                                           onclick="return confirm('Delete this product?')">
-                                            Delete
-                                        </a>
+                                        <form method="POST"
+                                              class="delete-product-form"
+                                              data-product-name="<?php echo e($prod["name"]); ?>">
+                                            <input type="hidden" name="csrf_token" value="<?php echo e($_SESSION["csrf_token"]); ?>">
+                                            <input type="hidden" name="product_id" value="<?php echo (int)$prod["id"]; ?>">
+                                            <input type="hidden" name="delete_product" value="1">
+                                            <button type="submit" class="btn btn-sm btn-danger">
+                                                Delete
+                                            </button>
+                                        </form>
                                     </div>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
                         </tbody>
                     </table>
+                </div>
+
+                <div class="text-center py-5 d-none" id="noFilteredProducts">
+                    <div class="avatar size-14 bg-light text-muted rounded-circle d-flex align-items-center justify-content-center mx-auto mb-3">
+                        <i class="ri-filter-off-line fs-3"></i>
+                    </div>
+                    <h6 class="mb-1">No matching products</h6>
+                    <p class="text-muted mb-0">Try changing your search term or filters.</p>
                 </div>
             <?php endif; ?>
         </div>
@@ -629,8 +738,71 @@ $products = $stmt->fetchAll();
         </div>
     </div>
 
+    <script src="./assets/sweetalert2-BUm3ePnk.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function () {
+            const productSearchInput = document.getElementById('productSearchInput');
+            const productCategoryFilter = document.getElementById('productCategoryFilter');
+            const productStockFilter = document.getElementById('productStockFilter');
+            const resetProductFilters = document.getElementById('resetProductFilters');
+            const productResultCount = document.getElementById('productResultCount');
+            const noFilteredProducts = document.getElementById('noFilteredProducts');
+            const productRows = Array.from(document.querySelectorAll('.product-row'));
+
+            function updateProductFilters() {
+                const searchTerm = productSearchInput ? productSearchInput.value.trim().toLowerCase() : '';
+                const categoryValue = productCategoryFilter ? productCategoryFilter.value : 'all';
+                const stockValue = productStockFilter ? productStockFilter.value : 'all';
+                let visibleCount = 0;
+
+                productRows.forEach(function (row) {
+                    const matchesSearch = searchTerm === '' || row.dataset.search.includes(searchTerm);
+                    const matchesCategory = categoryValue === 'all' || row.dataset.category === categoryValue;
+                    const matchesStock = stockValue === 'all' || row.dataset.stock === stockValue;
+                    const isVisible = matchesSearch && matchesCategory && matchesStock;
+
+                    row.classList.toggle('d-none', !isVisible);
+
+                    if (isVisible) {
+                        visibleCount++;
+                    }
+                });
+
+                if (productResultCount) {
+                    productResultCount.innerText = visibleCount + (visibleCount === 1 ? ' Product' : ' Products');
+                }
+
+                if (noFilteredProducts) {
+                    noFilteredProducts.classList.toggle('d-none', visibleCount !== 0);
+                }
+            }
+
+            [productSearchInput, productCategoryFilter, productStockFilter].forEach(function (control) {
+                if (control) {
+                    control.addEventListener('input', updateProductFilters);
+                    control.addEventListener('change', updateProductFilters);
+                }
+            });
+
+            if (resetProductFilters) {
+                resetProductFilters.addEventListener('click', function () {
+                    if (productSearchInput) {
+                        productSearchInput.value = '';
+                    }
+
+                    if (productCategoryFilter) {
+                        productCategoryFilter.value = 'all';
+                    }
+
+                    if (productStockFilter) {
+                        productStockFilter.value = 'all';
+                    }
+
+                    updateProductFilters();
+                    productSearchInput?.focus();
+                });
+            }
+
             document.querySelectorAll('.view-product-btn').forEach(function (button) {
                 button.addEventListener('click', function () {
                     const product = JSON.parse(this.dataset.product);
@@ -681,6 +853,42 @@ $products = $stmt->fetchAll();
                     }
 
                     new bootstrap.Modal(document.getElementById('editProductModal')).show();
+                });
+            });
+
+            document.querySelectorAll('.delete-product-form').forEach(function (form) {
+                form.addEventListener('submit', function (event) {
+                    event.preventDefault();
+
+                    const productName = this.dataset.productName || 'this product';
+
+                    if (!window.Swal) {
+                        if (window.confirm('Delete ' + productName + '?')) {
+                            this.submit();
+                        }
+
+                        return;
+                    }
+
+                    Swal.fire({
+                        title: 'Delete product?',
+                        text: 'You are about to delete "' + productName + '". This cannot be undone.',
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonText: 'Yes, delete',
+                        cancelButtonText: 'Cancel',
+                        reverseButtons: true,
+                        focusCancel: true,
+                        customClass: {
+                            confirmButton: 'btn btn-danger',
+                            cancelButton: 'btn btn-light border me-2'
+                        },
+                        buttonsStyling: false
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            form.submit();
+                        }
+                    });
                 });
             });
         });

@@ -50,14 +50,15 @@ function addToCart(product) {
 
     if (existingItem) {
         if (existingItem.quantity >= existingItem.stock) {
-            alert('Not enough stock available.');
+            showToast('Not enough stock available.', 'error');
             return;
         }
 
         existingItem.quantity += 1;
+        showToast(existingItem.name + ' quantity updated in cart.', 'success');
     } else {
         if (product.stock <= 0) {
-            alert('This product is out of stock.');
+            showToast('This product is out of stock.', 'error');
             return;
         }
 
@@ -69,6 +70,7 @@ function addToCart(product) {
             quantity: 1,
             image_path: product.image_path
         });
+        showToast(product.name + ' added to cart.', 'success');
     }
 
     updateCartUI();
@@ -92,7 +94,7 @@ function updateQuantity(index, delta) {
     }
 
     if (nextQuantity > cart[index].stock) {
-        alert('Not enough stock available.');
+        showToast('Not enough stock available.', 'error');
         return;
     }
 
