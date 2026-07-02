@@ -4,6 +4,7 @@ require_once "config/db.php";
 
 $message = "";
 $error = "";
+$isAdminUser = isAdmin();
 
 if (empty($_SESSION["csrf_token"])) {
     $_SESSION["csrf_token"] = bin2hex(random_bytes(32));
@@ -86,8 +87,12 @@ function deleteUploadedProductImage($imagePath) {
     }
 }
 
+if ($_SERVER["REQUEST_METHOD"] === "POST" && !$isAdminUser) {
+    $error = "Only admin users can make product or category changes.";
+}
+
 // Handle Add Category
-if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["add_category"])) {
+if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["add_category"]) && $isAdminUser) {
     $categoryName = trim($_POST["category_name"] ?? "");
 
     if ($categoryName === "") {
@@ -108,7 +113,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["add_category"])) {
 }
 
 // Handle Add Product
-if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["add_product"])) {
+if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["add_product"]) && $isAdminUser) {
     try {
         $name = trim($_POST["name"] ?? "");
         $category_id = isset($_POST["category_id"]) && $_POST["category_id"] !== "" ? (int)$_POST["category_id"] : null;
@@ -166,7 +171,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["add_product"])) {
 }
 
 // Handle Update Product
-if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["update_product"])) {
+if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["update_product"]) && $isAdminUser) {
     try {
         $id = isset($_POST["product_id"]) ? (int)$_POST["product_id"] : 0;
         $name = trim($_POST["edit_name"] ?? "");
@@ -263,7 +268,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["update_product"])) {
 }
 
 // Handle Delete Product
-if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["delete_product"])) {
+if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["delete_product"]) && $isAdminUser) {
     try {
         $id = isset($_POST["product_id"]) ? (int)$_POST["product_id"] : 0;
         $csrfToken = $_POST["csrf_token"] ?? "";
@@ -353,15 +358,16 @@ $products = $stmt->fetchAll();
     <div class="alert alert-danger"><?php echo e($error); ?></div>
 <?php endif; ?>
 
-    <div class="row g-4">
-        <div class="col-xl-8">
-            <div class="card h-100">
-                <div class="card-header">
-                    <h6 class="card-title mb-0">Add New Product</h6>
-                </div>
+    <?php if ($isAdminUser): ?>
+        <div class="row g-4">
+            <div class="col-xl-8">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h6 class="card-title mb-0">Add New Product</h6>
+                    </div>
 
-                <div class="card-body">
-                    <form method="POST" enctype="multipart/form-data" class="row g-4">
+                    <div class="card-body">
+                        <form method="POST" enctype="multipart/form-data" class="row g-4">
                         <div class="col-md-6">
                             <label class="form-label">Product Name <span class="text-danger">*</span></label>
                             <input type="text" name="name" class="form-control" placeholder="e.g. Coca Cola 500ml" required>
@@ -401,19 +407,19 @@ $products = $stmt->fetchAll();
                                 Add Product
                             </button>
                         </div>
-                    </form>
+                        </form>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <div class="col-xl-4">
-            <div class="card h-100">
-                <div class="card-header">
-                    <h6 class="card-title mb-0">Add Category</h6>
-                </div>
+            <div class="col-xl-4">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h6 class="card-title mb-0">Add Category</h6>
+                    </div>
 
-                <div class="card-body">
-                    <form method="POST" class="vstack gap-3">
+                    <div class="card-body">
+                        <form method="POST" class="vstack gap-3">
                         <div>
                             <label class="form-label">Category Name</label>
                             <input type="text" name="category_name" class="form-control" placeholder="e.g. Drinks">
@@ -423,7 +429,7 @@ $products = $stmt->fetchAll();
                             <i class="ri-folder-add-line me-1"></i>
                             Save Category
                         </button>
-                    </form>
+                        </form>
 
                     <hr>
 
@@ -440,10 +446,15 @@ $products = $stmt->fetchAll();
                             <?php endforeach; ?>
                         </div>
                     <?php endif; ?>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
+    <?php else: ?>
+        <div class="alert alert-light border">
+            Staff access is read-only. Product and category changes require an admin account.
+        </div>
+    <?php endif; ?>
 
     <div class="card mt-4">
         <div class="card-header d-flex align-items-center justify-content-between gap-3">
@@ -585,29 +596,31 @@ $products = $stmt->fetchAll();
                                             View
                                         </button>
 
-                                        <button type="button"
-                                                class="btn btn-sm btn-primary edit-product-btn"
-                                                data-product='<?php echo e(json_encode([
-                                                        "id" => (int)$prod["id"],
-                                                        "name" => $prod["name"],
-                                                        "category_id" => $prod["category_id"],
-                                                        "price" => (float)$prod["price"],
-                                                        "stock" => (int)$prod["stock_quantity"],
-                                                        "image_path" => $imagePath
-                                                ])); ?>'>
-                                            Edit
-                                        </button>
-
-                                        <form method="POST"
-                                              class="delete-product-form"
-                                              data-product-name="<?php echo e($prod["name"]); ?>">
-                                            <input type="hidden" name="csrf_token" value="<?php echo e($_SESSION["csrf_token"]); ?>">
-                                            <input type="hidden" name="product_id" value="<?php echo (int)$prod["id"]; ?>">
-                                            <input type="hidden" name="delete_product" value="1">
-                                            <button type="submit" class="btn btn-sm btn-danger">
-                                                Delete
+                                        <?php if ($isAdminUser): ?>
+                                            <button type="button"
+                                                    class="btn btn-sm btn-primary edit-product-btn"
+                                                    data-product='<?php echo e(json_encode([
+                                                            "id" => (int)$prod["id"],
+                                                            "name" => $prod["name"],
+                                                            "category_id" => $prod["category_id"],
+                                                            "price" => (float)$prod["price"],
+                                                            "stock" => (int)$prod["stock_quantity"],
+                                                            "image_path" => $imagePath
+                                                    ])); ?>'>
+                                                Edit
                                             </button>
-                                        </form>
+
+                                            <form method="POST"
+                                                  class="delete-product-form"
+                                                  data-product-name="<?php echo e($prod["name"]); ?>">
+                                                <input type="hidden" name="csrf_token" value="<?php echo e($_SESSION["csrf_token"]); ?>">
+                                                <input type="hidden" name="product_id" value="<?php echo (int)$prod["id"]; ?>">
+                                                <input type="hidden" name="delete_product" value="1">
+                                                <button type="submit" class="btn btn-sm btn-danger">
+                                                    Delete
+                                                </button>
+                                            </form>
+                                        <?php endif; ?>
                                     </div>
                                 </td>
                             </tr>

@@ -3,6 +3,8 @@ require_once "includes/auth_check.php";
 require_once "config/db.php";
 require_once "index_stats.php";
 
+$isAdminUser = isAdmin();
+
 $stmt = $pdo->query("
     SELECT 
         s.id,
@@ -45,39 +47,41 @@ $low_stock_products = $stmt->fetchAll();
 </div>
 
 <div class="row g-4">
-    <div class="col-xl-3 col-md-6">
-        <div class="card h-100">
-            <div class="card-body">
-                <div class="d-flex align-items-center justify-content-between mb-4">
-                    <div>
-                        <p class="mb-1 text-muted">Today Sales</p>
-                        <h5 class="mb-0 fs-22">GHS <?php echo number_format((float)$today_sales, 2); ?></h5>
+    <?php if ($isAdminUser): ?>
+        <div class="col-xl-3 col-md-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <div class="d-flex align-items-center justify-content-between mb-4">
+                        <div>
+                            <p class="mb-1 text-muted">Today Sales</p>
+                            <h5 class="mb-0 fs-22">GHS <?php echo number_format((float)$today_sales, 2); ?></h5>
+                        </div>
+                        <div class="avatar size-12 bg-success-subtle rounded-circle text-success d-flex align-items-center justify-content-center">
+                            <i class="ri-shopping-cart-2-line fs-4"></i>
+                        </div>
                     </div>
-                    <div class="avatar size-12 bg-success-subtle rounded-circle text-success d-flex align-items-center justify-content-center">
-                        <i class="ri-shopping-cart-2-line fs-4"></i>
-                    </div>
+                    <a href="pos.php" class="link link-success fs-sm">Start selling</a>
                 </div>
-                <a href="pos.php" class="link link-success fs-sm">Start selling</a>
             </div>
         </div>
-    </div>
 
-    <div class="col-xl-3 col-md-6">
-        <div class="card h-100">
-            <div class="card-body">
-                <div class="d-flex align-items-center justify-content-between mb-4">
-                    <div>
-                        <p class="mb-1 text-muted">All Sales Amount</p>
-                        <h5 class="mb-0 fs-22">GHS <?php echo number_format((float)$all_sales_amount, 2); ?></h5>
+        <div class="col-xl-3 col-md-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <div class="d-flex align-items-center justify-content-between mb-4">
+                        <div>
+                            <p class="mb-1 text-muted">All Sales Amount</p>
+                            <h5 class="mb-0 fs-22">GHS <?php echo number_format((float)$all_sales_amount, 2); ?></h5>
+                        </div>
+                        <div class="avatar size-12 bg-primary-subtle rounded-circle text-primary d-flex align-items-center justify-content-center">
+                            <i class="ri-coins-line fs-4"></i>
+                        </div>
                     </div>
-                    <div class="avatar size-12 bg-primary-subtle rounded-circle text-primary d-flex align-items-center justify-content-center">
-                        <i class="ri-coins-line fs-4"></i>
-                    </div>
+                    <span class="text-muted fs-sm">Lifetime sales total</span>
                 </div>
-                <span class="text-muted fs-sm">Lifetime sales total</span>
             </div>
         </div>
-    </div>
+    <?php endif; ?>
 
     <div class="col-xl-3 col-md-6">
         <div class="card h-100">
@@ -118,7 +122,7 @@ $low_stock_products = $stmt->fetchAll();
     <div class="col-xl-8">
         <div class="card h-100">
             <div class="card-header d-flex align-items-center justify-content-between">
-                <h6 class="card-title mb-0">Recent Sales</h6>
+                <h6 class="card-title mb-0"><?php echo $isAdminUser ? "Recent Sales" : "Recent Receipts"; ?></h6>
                 <a href="pos.php" class="btn btn-sm btn-light border">New Sale</a>
             </div>
 
@@ -138,7 +142,9 @@ $low_stock_products = $stmt->fetchAll();
                                     <th>Cashier</th>
                                     <th>Payment</th>
                                     <th>Date</th>
-                                    <th class="text-end">Amount</th>
+                                    <?php if ($isAdminUser): ?>
+                                        <th class="text-end">Amount</th>
+                                    <?php endif; ?>
                                 </tr>
                             </thead>
                             <tbody>
@@ -152,9 +158,11 @@ $low_stock_products = $stmt->fetchAll();
                                         <td><?php echo htmlspecialchars($sale['username'] ?: 'N/A'); ?></td>
                                         <td><?php echo htmlspecialchars($sale['payment_method'] ?: 'Cash'); ?></td>
                                         <td><?php echo htmlspecialchars($sale['created_at']); ?></td>
-                                        <td class="text-end fw-medium">
-                                            GHS <?php echo number_format((float)$sale['final_amount'], 2); ?>
-                                        </td>
+                                        <?php if ($isAdminUser): ?>
+                                            <td class="text-end fw-medium">
+                                                GHS <?php echo number_format((float)$sale['final_amount'], 2); ?>
+                                            </td>
+                                        <?php endif; ?>
                                     </tr>
                                 <?php endforeach; ?>
                             </tbody>

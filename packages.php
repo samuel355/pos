@@ -5,6 +5,7 @@ require_once "includes/table_packages.php";
 
 $message = "";
 $error = "";
+$isAdminUser = isAdmin();
 
 function e($value) {
     return htmlspecialchars((string)$value, ENT_QUOTES, "UTF-8");
@@ -140,7 +141,11 @@ try {
     $error = "Package setup failed: " . $ex->getMessage();
 }
 
-if ($_SERVER["REQUEST_METHOD"] === "POST") {
+if ($_SERVER["REQUEST_METHOD"] === "POST" && !$isAdminUser) {
+    $error = "Only admin users can make package changes.";
+}
+
+if ($_SERVER["REQUEST_METHOD"] === "POST" && $isAdminUser) {
     $action = $_POST["action"] ?? "";
 
     try {
@@ -430,12 +435,19 @@ $productsForJs = array_map(function ($product) {
     <div class="alert alert-danger"><?php echo e($error); ?></div>
 <?php endif; ?>
 
-<div class="card">
-    <div class="card-header">
-        <h6 class="card-title mb-0">Create Package</h6>
+<?php if (!$isAdminUser): ?>
+    <div class="alert alert-light border">
+        Staff access is read-only. Package changes require an admin account.
     </div>
-    <div class="card-body">
-        <form method="POST" class="package-form" data-package-form>
+<?php endif; ?>
+
+<?php if ($isAdminUser): ?>
+    <div class="card">
+        <div class="card-header">
+            <h6 class="card-title mb-0">Create Package</h6>
+        </div>
+        <div class="card-body">
+            <form method="POST" class="package-form" data-package-form>
             <input type="hidden" name="action" value="create_package">
             <div class="row g-3">
                 <div class="col-md-3">
@@ -495,9 +507,10 @@ $productsForJs = array_map(function ($product) {
             </div>
 
             <button type="submit" class="btn btn-primary mt-4">Create Package</button>
-        </form>
+            </form>
+        </div>
     </div>
-</div>
+<?php endif; ?>
 
 <div class="card mt-4 border-0 shadow-sm">
     <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
@@ -544,9 +557,11 @@ $productsForJs = array_map(function ($product) {
                                 </div>
                                 <div class="text-end">
                                     <div class="package-price"><?php echo money($package["price"]); ?></div>
-                                    <div class="<?php echo $profit >= 0 ? "text-success" : "text-danger"; ?> fs-sm fw-semibold">
-                                        Profit: <?php echo money($profit); ?>
-                                    </div>
+                                    <?php if ($isAdminUser): ?>
+                                        <div class="<?php echo $profit >= 0 ? "text-success" : "text-danger"; ?> fs-sm fw-semibold">
+                                            Profit: <?php echo money($profit); ?>
+                                        </div>
+                                    <?php endif; ?>
                                 </div>
                         </div>
 
@@ -554,25 +569,30 @@ $productsForJs = array_map(function ($product) {
                                 <div class="package-preview-item package-preview-head">
                                     <span>Product Name</span>
                                     <span>Qty</span>
-                                    <span class="cost">Cost</span>
-                                    <span class="total text-end">Total</span>
+                                    <?php if ($isAdminUser): ?>
+                                        <span class="cost">Cost</span>
+                                        <span class="total text-end">Total</span>
+                                    <?php endif; ?>
                                 </div>
                                 <?php if (empty($items)): ?>
                                     <p class="text-muted mb-0 py-3">No items added yet.</p>
                                 <?php else: ?>
                                     <?php foreach ($items as $previewItem): ?>
                                         <?php $lineTotal = (float)$previewItem["unit_cost"] * (int)$previewItem["quantity"]; ?>
-                                        <div class="package-preview-item">
-                                            <span class="fw-medium text-truncate"><?php echo e($previewItem["item_name"]); ?></span>
-                                            <span><?php echo (int)$previewItem["quantity"]; ?></span>
-                                            <span class="cost"><?php echo money($previewItem["unit_cost"]); ?></span>
-                                            <span class="total text-end fw-semibold"><?php echo money($lineTotal); ?></span>
-                                        </div>
+	                                        <div class="package-preview-item">
+	                                            <span class="fw-medium text-truncate"><?php echo e($previewItem["item_name"]); ?></span>
+	                                            <span><?php echo (int)$previewItem["quantity"]; ?></span>
+                                                <?php if ($isAdminUser): ?>
+    	                                            <span class="cost"><?php echo money($previewItem["unit_cost"]); ?></span>
+    	                                            <span class="total text-end fw-semibold"><?php echo money($lineTotal); ?></span>
+                                                <?php endif; ?>
+	                                        </div>
                                     <?php endforeach; ?>
                                 <?php endif; ?>
                         </div>
 
-                        <div class="modal fade" id="editPackageModal<?php echo $packageId; ?>" tabindex="-1" aria-hidden="true">
+                        <?php if ($isAdminUser): ?>
+                            <div class="modal fade" id="editPackageModal<?php echo $packageId; ?>" tabindex="-1" aria-hidden="true">
                             <div class="modal-dialog modal-xl modal-dialog-scrollable modal-dialog-centered">
                                 <form method="POST" class="package-form modal-content" id="<?php echo e($updateFormId); ?>" data-package-form>
                                     <input type="hidden" name="action" value="update_package">
@@ -688,17 +708,18 @@ $productsForJs = array_map(function ($product) {
                                         </div>
                                 </form>
                             </div>
-                        </div>
+                            </div>
 
-                        <form method="POST" id="<?php echo e($deleteFormId); ?>" onsubmit="return confirm('Delete <?php echo e($package["name"]); ?>? If it has booking history, it will be deactivated instead.');">
-                            <input type="hidden" name="action" value="delete_package">
-                            <input type="hidden" name="package_id" value="<?php echo $packageId; ?>">
-                        </form>
+                            <form method="POST" id="<?php echo e($deleteFormId); ?>" onsubmit="return confirm('Delete <?php echo e($package["name"]); ?>? If it has booking history, it will be deactivated instead.');">
+                                <input type="hidden" name="action" value="delete_package">
+                                <input type="hidden" name="package_id" value="<?php echo $packageId; ?>">
+                            </form>
 
-                        <div class="d-flex flex-wrap gap-2 px-3 px-md-4 pb-4">
-                            <button type="button" class="btn btn-sm btn-light border" data-bs-toggle="modal" data-bs-target="#editPackageModal<?php echo $packageId; ?>">Edit</button>
-                            <button type="submit" form="<?php echo e($deleteFormId); ?>" class="btn btn-sm btn-outline-danger">Delete</button>
-                        </div>
+                            <div class="d-flex flex-wrap gap-2 px-3 px-md-4 pb-4">
+                                <button type="button" class="btn btn-sm btn-light border" data-bs-toggle="modal" data-bs-target="#editPackageModal<?php echo $packageId; ?>">Edit</button>
+                                <button type="submit" form="<?php echo e($deleteFormId); ?>" class="btn btn-sm btn-outline-danger">Delete</button>
+                            </div>
+                        <?php endif; ?>
                     </div>
                 </div>
             <?php endforeach; ?>

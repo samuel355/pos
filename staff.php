@@ -2,6 +2,8 @@
 require_once "includes/auth_check.php";
 require_once "config/db.php";
 
+requireAdmin();
+
 $message = "";
 $error = "";
 
@@ -43,6 +45,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["add_staff"])) {
         $username = trim($_POST["username"] ?? "");
         $email = trim($_POST["email"] ?? "");
         $phone = cleanPhone($_POST["phone"] ?? "");
+        $role = $isAdmin ? trim($_POST["role"] ?? "staff") : "staff";
         $password = (string)($_POST["password"] ?? "");
         $confirmPassword = (string)($_POST["confirm_password"] ?? "");
 
@@ -99,7 +102,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["add_staff"])) {
                 (?, ?, ?)
         ");
         $stmt->execute([$username, $hashedPassword, $role]);
-        $stmt->execute([$username, $hashedPassword]);
 
         $userId = (int)$pdo->lastInsertId();
 

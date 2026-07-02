@@ -119,16 +119,18 @@ function ariaCurrent($page, $currentPage)
                     </a>
                 </li>
 
-                <li class="nav-item">
-                    <a href="staff.php"
-                        class="nav-link <?php echo isActiveMenu('staff.php', $currentPage); ?>"
-                        <?php echo ariaCurrent('staff.php', $currentPage); ?>>
-                        <span class="icons">
-                            <i class="ri-team-line"></i>
-                        </span>
-                        <span class="menu-text">Staff Management</span>
-                    </a>
-                </li>
+                <?php if (function_exists('isAdmin') && isAdmin()): ?>
+                    <li class="nav-item">
+                        <a href="staff.php"
+                            class="nav-link <?php echo isActiveMenu('staff.php', $currentPage); ?>"
+                            <?php echo ariaCurrent('staff.php', $currentPage); ?>>
+                            <span class="icons">
+                                <i class="ri-team-line"></i>
+                            </span>
+                            <span class="menu-text">Staff Management</span>
+                        </a>
+                    </li>
+                <?php endif; ?>
 
                 <li class="nav-menu-title">
                     <span>System</span>

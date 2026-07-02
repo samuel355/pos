@@ -5,6 +5,8 @@ require_once "includes/table_packages.php";
 
 ensureTablePackageSchema($pdo);
 
+$isAdminUser = isAdmin();
+
 function e($value) {
     return htmlspecialchars((string)$value, ENT_QUOTES, "UTF-8");
 }
@@ -110,24 +112,30 @@ $summary = $pdo->query("
     </a>
 </div>
 
-<div class="row g-4 mb-4">
-    <div class="col-md-6 col-xl-3">
-        <div class="card h-100">
-            <div class="card-body">
-                <p class="text-muted mb-1">Total Receipts</p>
-                <h5 class="mb-0"><?php echo number_format((int)$summary["receipt_count"]); ?></h5>
+<?php if ($isAdminUser): ?>
+    <div class="row g-4 mb-4">
+        <div class="col-md-6 col-xl-3">
+            <div class="card h-100">
+                <div class="card-body">
+                    <p class="text-muted mb-1">Total Receipts</p>
+                    <h5 class="mb-0"><?php echo number_format((int)$summary["receipt_count"]); ?></h5>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-xl-3">
+            <div class="card h-100">
+                <div class="card-body">
+                    <p class="text-muted mb-1">Receipt Total</p>
+                    <h5 class="mb-0"><?php echo money($summary["total_amount"]); ?></h5>
+                </div>
             </div>
         </div>
     </div>
-    <div class="col-md-6 col-xl-3">
-        <div class="card h-100">
-            <div class="card-body">
-                <p class="text-muted mb-1">Receipt Total</p>
-                <h5 class="mb-0"><?php echo money($summary["total_amount"]); ?></h5>
-            </div>
-        </div>
+<?php else: ?>
+    <div class="alert alert-light border">
+        Staff access can view and print individual receipts. Aggregate receipt totals require an admin account.
     </div>
-</div>
+<?php endif; ?>
 
 <div class="card">
     <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-3">

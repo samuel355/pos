@@ -4,6 +4,7 @@ require_once 'config/db.php';
 
 $errors = [];
 $success = '';
+$isAdminUser = isAdmin();
 
 function e($value)
 {
@@ -84,7 +85,11 @@ function validateStatus($status)
 }
 
 // Handle Add Category
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_category'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$isAdminUser) {
+    $errors[] = 'Only admin users can make category changes.';
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_category']) && $isAdminUser) {
     try {
         $name = trim($_POST['name'] ?? '');
         $code = trim($_POST['code'] ?? '');
@@ -132,7 +137,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_category'])) {
 }
 
 // Handle Update Category
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_category'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_category']) && $isAdminUser) {
     try {
         $id = isset($_POST['category_id']) ? (int)$_POST['category_id'] : 0;
         $name = trim($_POST['edit_name'] ?? '');
@@ -206,7 +211,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_category'])) {
 }
 
 // Handle Delete Category
-if (isset($_GET['delete'])) {
+if (isset($_GET['delete']) && !$isAdminUser) {
+    $errors[] = 'Only admin users can delete categories.';
+}
+
+if (isset($_GET['delete']) && $isAdminUser) {
     $id = (int)$_GET['delete'];
 
     $countStmt = $pdo->prepare('SELECT COUNT(*) FROM products WHERE category_id = ?');
@@ -287,15 +296,22 @@ $nextCategoryCode = generateCategoryCode($pdo);
     </div>
 <?php endif; ?>
 
-<div class="row g-4">
-    <div class="col-xl-4">
-        <div class="card h-100">
-            <div class="card-header">
-                <h6 class="card-title mb-0">Add Category</h6>
-            </div>
+<?php if (!$isAdminUser): ?>
+    <div class="alert alert-light border">
+        Staff access is read-only. Category changes require an admin account.
+    </div>
+<?php endif; ?>
 
-            <div class="card-body">
-                <form method="post" action="categories.php" enctype="multipart/form-data" class="vstack gap-3" novalidate>
+<div class="row g-4">
+    <?php if ($isAdminUser): ?>
+        <div class="col-xl-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">Add Category</h6>
+                </div>
+
+                <div class="card-body">
+                    <form method="post" action="categories.php" enctype="multipart/form-data" class="vstack gap-3" novalidate>
                     <div>
                         <label class="form-label" for="category_name">Category Name <span class="text-danger">*</span></label>
                         <input
@@ -345,12 +361,13 @@ $nextCategoryCode = generateCategoryCode($pdo);
                         <i class="ri-add-line me-1"></i>
                         Save Category
                     </button>
-                </form>
+                    </form>
+                </div>
             </div>
         </div>
-    </div>
+    <?php endif; ?>
 
-    <div class="col-xl-8">
+    <div class="<?php echo $isAdminUser ? 'col-xl-8' : 'col-12'; ?>">
         <div class="card h-100">
             <div class="card-header d-flex align-items-center justify-content-between gap-3">
                 <h6 class="card-title mb-0">Category List</h6>
@@ -431,28 +448,30 @@ $nextCategoryCode = generateCategoryCode($pdo);
                                                     View
                                                 </button>
 
-                                                <button type="button"
-                                                    class="btn btn-sm btn-primary edit-category-btn"
-                                                    data-category='<?php echo e(json_encode([
-                                                                        'id' => (int)$category['id'],
-                                                                        'name' => $category['name'],
-                                                                        'code' => $category['code'],
-                                                                        'image_path' => $categoryImage,
-                                                                        'status' => $category['status'],
-                                                                    ])); ?>'>
-                                                    Edit
-                                                </button>
-
-                                                <?php if ((int)$category['product_count'] === 0): ?>
-                                                    <a href="categories.php?delete=<?php echo (int)$category['id']; ?>"
-                                                        class="btn btn-sm btn-danger"
-                                                        onclick="return confirm('Delete this category?')">
-                                                        Delete
-                                                    </a>
-                                                <?php else: ?>
-                                                    <button type="button" class="btn btn-sm btn-danger" disabled title="Category has products">
-                                                        Delete
+                                                <?php if ($isAdminUser): ?>
+                                                    <button type="button"
+                                                        class="btn btn-sm btn-primary edit-category-btn"
+                                                        data-category='<?php echo e(json_encode([
+                                                                            'id' => (int)$category['id'],
+                                                                            'name' => $category['name'],
+                                                                            'code' => $category['code'],
+                                                                            'image_path' => $categoryImage,
+                                                                            'status' => $category['status'],
+                                                                        ])); ?>'>
+                                                        Edit
                                                     </button>
+
+                                                    <?php if ((int)$category['product_count'] === 0): ?>
+                                                        <a href="categories.php?delete=<?php echo (int)$category['id']; ?>"
+                                                            class="btn btn-sm btn-danger"
+                                                            onclick="return confirm('Delete this category?')">
+                                                            Delete
+                                                        </a>
+                                                    <?php else: ?>
+                                                        <button type="button" class="btn btn-sm btn-danger" disabled title="Category has products">
+                                                            Delete
+                                                        </button>
+                                                    <?php endif; ?>
                                                 <?php endif; ?>
                                             </div>
                                         </td>

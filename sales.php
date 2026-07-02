@@ -7,6 +7,7 @@ ensureTablePackageSchema($pdo);
 
 $message = "";
 $error = "";
+$isAdminUser = isAdmin();
 
 function e($value) {
     return htmlspecialchars((string)$value, ENT_QUOTES, "UTF-8");
@@ -19,7 +20,11 @@ function money($amount) {
 $allowedPaymentMethods = ["Cash", "Card", "Mobile Money", "Bank Transfer"];
 
 // Handle Update Sale
-if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["update_sale"])) {
+if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["update_sale"]) && !$isAdminUser) {
+    $error = "Only admin users can edit sales.";
+}
+
+if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["update_sale"]) && $isAdminUser) {
     try {
         $saleId = isset($_POST["sale_id"]) ? (int)$_POST["sale_id"] : 0;
         $paymentMethod = trim($_POST["payment_method"] ?? "Cash");
@@ -77,7 +82,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["update_sale"])) {
 }
 
 // Handle Delete Sale
-if (isset($_GET["delete"])) {
+if (isset($_GET["delete"]) && !$isAdminUser) {
+    $error = "Only admin users can delete sales.";
+}
+
+if (isset($_GET["delete"]) && $isAdminUser) {
     try {
         $saleId = (int)$_GET["delete"];
 
@@ -332,43 +341,49 @@ $summary = $summaryStmt->fetch();
     <div class="alert alert-danger"><?php echo e($error); ?></div>
 <?php endif; ?>
 
-<div class="row g-4 mb-4">
-    <div class="col-xl-3 col-md-6">
-        <div class="card h-100">
-            <div class="card-body">
-                <p class="text-muted mb-1">Total Sales</p>
-                <h5 class="mb-0"><?php echo number_format((int)$summary["total_sales"]); ?></h5>
+<?php if ($isAdminUser): ?>
+    <div class="row g-4 mb-4">
+        <div class="col-xl-3 col-md-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <p class="text-muted mb-1">Total Sales</p>
+                    <h5 class="mb-0"><?php echo number_format((int)$summary["total_sales"]); ?></h5>
+                </div>
             </div>
         </div>
-    </div>
 
-    <div class="col-xl-3 col-md-6">
-        <div class="card h-100">
-            <div class="card-body">
-                <p class="text-muted mb-1">Total Revenue</p>
-                <h5 class="mb-0"><?php echo money($summary["total_revenue"]); ?></h5>
+        <div class="col-xl-3 col-md-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <p class="text-muted mb-1">Total Revenue</p>
+                    <h5 class="mb-0"><?php echo money($summary["total_revenue"]); ?></h5>
+                </div>
             </div>
         </div>
-    </div>
 
-    <div class="col-xl-3 col-md-6">
-        <div class="card h-100">
-            <div class="card-body">
-                <p class="text-muted mb-1">Total Discount</p>
-                <h5 class="mb-0"><?php echo money($summary["total_discount"]); ?></h5>
+        <div class="col-xl-3 col-md-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <p class="text-muted mb-1">Total Discount</p>
+                    <h5 class="mb-0"><?php echo money($summary["total_discount"]); ?></h5>
+                </div>
             </div>
         </div>
-    </div>
 
-    <div class="col-xl-3 col-md-6">
-        <div class="card h-100">
-            <div class="card-body">
-                <p class="text-muted mb-1">Total Tax</p>
-                <h5 class="mb-0"><?php echo money($summary["total_tax"]); ?></h5>
+        <div class="col-xl-3 col-md-6">
+            <div class="card h-100">
+                <div class="card-body">
+                    <p class="text-muted mb-1">Total Tax</p>
+                    <h5 class="mb-0"><?php echo money($summary["total_tax"]); ?></h5>
+                </div>
             </div>
         </div>
     </div>
-</div>
+<?php else: ?>
+    <div class="alert alert-light border">
+        Staff access can view and print sales records. Editing, deleting, and aggregate sales totals require an admin account.
+    </div>
+<?php endif; ?>
 
 <div class="card">
     <div class="card-header d-flex flex-wrap gap-3 align-items-center justify-content-between">
@@ -480,7 +495,7 @@ $summary = $summaryStmt->fetch();
 	                                            View
 	                                        </button>
 
-                                            <?php if (!$isTableBill): ?>
+                                            <?php if ($isAdminUser && !$isTableBill): ?>
     	                                        <button type="button"
     	                                                class="btn btn-sm btn-primary edit-sale-btn"
     	                                                data-sale='<?php echo e(json_encode([
@@ -501,7 +516,7 @@ $summary = $summaryStmt->fetch();
 	                                            Print
 	                                        </button>
 
-                                            <?php if (!$isTableBill): ?>
+                                            <?php if ($isAdminUser && !$isTableBill): ?>
     	                                        <a href="sales.php?delete=<?php echo $representativeSaleId; ?>"
     	                                           class="btn btn-sm btn-danger"
     	                                           onclick="return confirm('Delete this sale? Stock will be restored.')">

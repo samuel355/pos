@@ -5,6 +5,7 @@ require_once "includes/table_packages.php";
 
 $message = "";
 $error = "";
+$isAdminUser = isAdmin();
 
 function e($value) {
     return htmlspecialchars((string)$value, ENT_QUOTES, "UTF-8");
@@ -140,6 +141,19 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $action = $_POST["action"] ?? "";
 
     try {
+        $adminOnlyActions = [
+            "create_table",
+            "update_table",
+            "delete_table",
+            "create_package",
+            "update_package",
+            "delete_package",
+        ];
+
+        if (in_array($action, $adminOnlyActions, true) && !$isAdminUser) {
+            throw new Exception("Only admin users can manage tables or packages.");
+        }
+
         if ($action === "create_table") {
             $name = trim($_POST["name"] ?? "");
             $status = ($_POST["status"] ?? "Active") === "Inactive" ? "Inactive" : "Active";
@@ -553,7 +567,7 @@ $tables = $tablesStmt->fetchAll();
     <div class="d-flex flex-wrap gap-2">
         <a href="packages.php" class="btn btn-light border">
             <i class="ri-gift-line me-1"></i>
-            Manage Packages
+            <?php echo $isAdminUser ? "Manage Packages" : "View Packages"; ?>
         </a>
         <a href="pos.php" class="btn btn-primary">
             <i class="ri-shopping-cart-2-line me-1"></i>
@@ -605,14 +619,21 @@ $tables = $tablesStmt->fetchAll();
     </div>
 <?php endif; ?>
 
+<?php if (!$isAdminUser): ?>
+    <div class="alert alert-light border">
+        Staff can book, view, close active bookings, and add drinks. Creating, renaming, or deleting tables requires an admin account.
+    </div>
+<?php endif; ?>
+
 <div class="row g-4">
-    <div class="col-xl-4">
-        <div class="card h-100">
-            <div class="card-header">
-                <h6 class="card-title mb-0">Create Table</h6>
-            </div>
-            <div class="card-body">
-                <form method="POST" class="vstack gap-3">
+    <?php if ($isAdminUser): ?>
+        <div class="col-xl-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">Create Table</h6>
+                </div>
+                <div class="card-body">
+                    <form method="POST" class="vstack gap-3">
                     <input type="hidden" name="action" value="create_table">
                     <div>
                         <label class="form-label">Table Name</label>
@@ -626,12 +647,13 @@ $tables = $tablesStmt->fetchAll();
                         </select>
                     </div>
                     <button class="btn btn-primary" type="submit">Add Table</button>
-                </form>
+                    </form>
+                </div>
             </div>
         </div>
-    </div>
+    <?php endif; ?>
 
-    <div class="col-xl-8">
+    <div class="<?php echo $isAdminUser ? 'col-xl-8' : 'col-12'; ?>">
         <div class="card h-100">
             <div class="card-header">
                 <h6 class="card-title mb-0">Book Customer Table</h6>
@@ -729,10 +751,14 @@ $tables = $tablesStmt->fetchAll();
                                 <input type="hidden" name="action" value="update_table">
                                 <input type="hidden" name="table_id" value="<?php echo (int)$table["id"]; ?>">
                             </form>
-                            <div class="row g-2 align-items-center">
-                                <div class="col-7">
-                                    <input type="text" name="name" form="<?php echo e($updateFormId); ?>" class="form-control form-control-sm" value="<?php echo e($table["name"]); ?>">
-                                </div>
+	                            <div class="row g-2 align-items-center">
+	                                <div class="col-12">
+                                        <?php if ($isAdminUser): ?>
+	                                        <input type="text" name="name" form="<?php echo e($updateFormId); ?>" class="form-control form-control-sm" value="<?php echo e($table["name"]); ?>">
+                                        <?php else: ?>
+                                            <strong><?php echo e($table["name"]); ?></strong>
+                                        <?php endif; ?>
+	                                </div>
                                 <?php /*
                                 <div class="col-5">
                                     <select name="status" form="<?php echo e($updateFormId); ?>" class="form-control form-control-sm">
@@ -779,7 +805,9 @@ $tables = $tablesStmt->fetchAll();
                                         data-table='<?php echo e(json_encode($viewPayload)); ?>'>
                                     View
                                 </button>
-                                <button type="submit" form="<?php echo e($updateFormId); ?>" class="btn btn-sm btn-light border">Save</button>
+	                                <?php if ($isAdminUser): ?>
+                                        <button type="submit" form="<?php echo e($updateFormId); ?>" class="btn btn-sm btn-light border">Save</button>
+                                    <?php endif; ?>
 
                             <?php if ($table["sale_ids"]): ?>
                                 <button type="button"
@@ -797,10 +825,10 @@ $tables = $tablesStmt->fetchAll();
                                     <button type="submit" class="btn btn-sm btn-success">Close</button>
                                 </form>
                                 <a class="btn btn-sm btn-outline-primary" href="pos.php?table=<?php echo (int)$table["id"]; ?>">Add Drinks</a>
-                            <?php else: ?>
-                                <form method="POST" onsubmit="return confirm('Delete this table?');">
-                                    <input type="hidden" name="action" value="delete_table">
-                                    <input type="hidden" name="table_id" value="<?php echo (int)$table["id"]; ?>">
+	                            <?php elseif ($isAdminUser): ?>
+	                                <form method="POST" onsubmit="return confirm('Delete this table?');">
+	                                    <input type="hidden" name="action" value="delete_table">
+	                                    <input type="hidden" name="table_id" value="<?php echo (int)$table["id"]; ?>">
                                     <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
                                 </form>
                             <?php endif; ?>
