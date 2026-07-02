@@ -809,7 +809,10 @@ $products = $stmt->fetchAll();
 
                     document.getElementById('viewProductName').innerText = product.name;
                     document.getElementById('viewProductCategory').innerText = product.category;
-                    document.getElementById('viewProductPrice').innerText = 'GHS ' + Number(product.price).toFixed(2);
+                    document.getElementById('viewProductPrice').innerText = 'GHS ' + Number(product.price).toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                    });
                     document.getElementById('viewProductStock').innerText = product.stock;
 
                     const image = document.getElementById('viewProductImage');

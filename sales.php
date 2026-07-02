@@ -150,25 +150,40 @@ if ($search !== "") {
 
 $stmt = $pdo->prepare("
     SELECT
-        s.*,
-        u.username,
-        COALESCE(s.customer_name, (
-            SELECT tb.customer_name
-            FROM table_bookings tb
-            WHERE tb.sale_id = s.id
-               OR (
-                    s.table_id IS NOT NULL
-                    AND tb.table_id = s.table_id
-                    AND s.created_at >= tb.booked_at
-                    AND (tb.closed_at IS NULL OR s.created_at <= tb.closed_at)
-               )
-            ORDER BY tb.id DESC
-            LIMIT 1
-        )) AS resolved_customer_name
+        MIN(s.id) AS id,
+        COALESCE(tb.sale_id, MIN(s.id)) AS representative_sale_id,
+        s.table_booking_id,
+        GROUP_CONCAT(s.id ORDER BY s.created_at ASC) AS receipt_ids,
+        COUNT(*) AS receipt_count,
+        SUM(s.total_amount) AS total_amount,
+        SUM(s.discount) AS discount,
+        SUM(s.tax) AS tax,
+        SUM(s.final_amount) AS final_amount,
+        COALESCE(
+            GROUP_CONCAT(DISTINCT NULLIF(s.payment_method, '') ORDER BY s.payment_method SEPARATOR ', '),
+            'Cash'
+        ) AS payment_method,
+        MAX(s.created_at) AS created_at,
+        COALESCE(MAX(u.username), 'N/A') AS username,
+        COALESCE(
+            MAX(NULLIF(s.customer_name, '')),
+            MAX(NULLIF(tb.customer_name, '')),
+            'Walk-in Customer'
+        ) AS resolved_customer_name,
+        MAX(rt.name) AS table_name
     FROM sales s
     LEFT JOIN users u ON s.user_id = u.id
+    LEFT JOIN table_bookings tb ON tb.id = s.table_booking_id
+    LEFT JOIN restaurant_tables rt ON rt.id = COALESCE(s.table_id, tb.table_id)
     $where
-    ORDER BY s.created_at DESC
+    GROUP BY
+        CASE
+            WHEN s.table_booking_id IS NULL THEN CONCAT('sale-', s.id)
+            ELSE CONCAT('booking-', s.table_booking_id)
+        END,
+        s.table_booking_id,
+        tb.sale_id
+    ORDER BY MAX(s.created_at) DESC, MIN(s.id) DESC
 ");
 $stmt->execute($params);
 $sales = $stmt->fetchAll();
@@ -411,9 +426,14 @@ $summary = $summaryStmt->fetch();
                     <tbody id="salesTableBody">
                         <?php foreach ($sales as $sale): ?>
                             <?php
+                            $representativeSaleId = (int)($sale["representative_sale_id"] ?: $sale["id"]);
+                            $receiptCount = (int)$sale["receipt_count"];
+                            $isTableBill = !empty($sale["table_booking_id"]);
                             $saleDateOnly = date('Y-m-d', strtotime($sale["created_at"]));
                             $saleSearchText = strtolower(
-                                    'receipt no ' . $sale["id"] . ' receipt ' . $sale["id"] . ' ' .
+                                    'receipt no ' . $representativeSaleId . ' receipt ' . $representativeSaleId . ' ' .
+                                    ($sale["receipt_ids"] ?: '') . ' ' .
+                                    ($isTableBill ? 'table bill ' . ($sale["table_name"] ?: '') : '') . ' ' .
                                     ($sale["username"] ?: "N/A") . ' ' .
                                     ($sale["resolved_customer_name"] ?: "walk-in customer") . ' ' .
                                     ($sale["payment_method"] ?: "Cash") . ' ' .
@@ -424,9 +444,17 @@ $summary = $summaryStmt->fetch();
                             <tr class="sale-row"
                                 data-search="<?php echo e($saleSearchText); ?>"
                                 data-sale-date="<?php echo e($saleDateOnly); ?>">
-                                <td>
-                                    <strong><?php echo (int)$sale["id"]; ?></strong>
-                                </td>
+	                                <td>
+                                        <?php if ($isTableBill): ?>
+                                            <strong>Table Bill</strong>
+                                            <div class="text-muted fs-sm">
+                                                <?php echo e($sale["table_name"] ?: "Table"); ?> ·
+                                                <?php echo $receiptCount; ?> receipt<?php echo $receiptCount === 1 ? "" : "s"; ?>
+                                            </div>
+                                        <?php else: ?>
+	                                        <strong><?php echo $representativeSaleId; ?></strong>
+                                        <?php endif; ?>
+	                                </td>
 
                                 <td><?php echo e($sale["username"] ?: "N/A"); ?></td>
 
@@ -446,38 +474,42 @@ $summary = $summaryStmt->fetch();
 
                                 <td>
                                     <div class="d-flex flex-wrap gap-2">
-                                        <button type="button"
-                                                class="btn btn-sm btn-light border view-sale-btn"
-                                                data-sale-id="<?php echo (int)$sale["id"]; ?>">
-                                            View
-                                        </button>
+	                                        <button type="button"
+	                                                class="btn btn-sm btn-light border view-sale-btn"
+	                                                data-sale-id="<?php echo $representativeSaleId; ?>">
+	                                            View
+	                                        </button>
 
-                                        <button type="button"
-                                                class="btn btn-sm btn-primary edit-sale-btn"
-                                                data-sale='<?php echo e(json_encode([
-                                                    "id" => (int)$sale["id"],
-                                                    "payment_method" => $sale["payment_method"] ?: "Cash",
-                                                    "discount" => (float)$sale["discount"],
-                                                    "tax" => (float)$sale["tax"],
-                                                    "total_amount" => (float)$sale["total_amount"],
-                                                    "final_amount" => (float)$sale["final_amount"],
-                                                ])); ?>'>
-                                            Edit
-                                        </button>
+                                            <?php if (!$isTableBill): ?>
+    	                                        <button type="button"
+    	                                                class="btn btn-sm btn-primary edit-sale-btn"
+    	                                                data-sale='<?php echo e(json_encode([
+    	                                                    "id" => $representativeSaleId,
+    	                                                    "payment_method" => $sale["payment_method"] ?: "Cash",
+    	                                                    "discount" => (float)$sale["discount"],
+    	                                                    "tax" => (float)$sale["tax"],
+    	                                                    "total_amount" => (float)$sale["total_amount"],
+    	                                                    "final_amount" => (float)$sale["final_amount"],
+    	                                                ])); ?>'>
+    	                                            Edit
+    	                                        </button>
+                                            <?php endif; ?>
+	
+	                                        <button type="button"
+	                                                class="btn btn-sm btn-secondary print-sale-btn"
+	                                                data-sale-id="<?php echo $representativeSaleId; ?>">
+	                                            Print
+	                                        </button>
 
-                                        <button type="button"
-                                                class="btn btn-sm btn-secondary print-sale-btn"
-                                                data-sale-id="<?php echo (int)$sale["id"]; ?>">
-                                            Print
-                                        </button>
-
-                                        <a href="sales.php?delete=<?php echo (int)$sale["id"]; ?>"
-                                           class="btn btn-sm btn-danger"
-                                           onclick="return confirm('Delete this sale? Stock will be restored.')">
-                                            Delete
-                                        </a>
-                                    </div>
-                                </td>
+                                            <?php if (!$isTableBill): ?>
+    	                                        <a href="sales.php?delete=<?php echo $representativeSaleId; ?>"
+    	                                           class="btn btn-sm btn-danger"
+    	                                           onclick="return confirm('Delete this sale? Stock will be restored.')">
+    	                                            Delete
+    	                                        </a>
+                                            <?php endif; ?>
+	                                    </div>
+	                                </td>
                             </tr>
                         <?php endforeach; ?>
 
@@ -603,9 +635,12 @@ $summary = $summaryStmt->fetch();
 </div>
 
 <script>
-    function money(amount) {
-        return 'GHS ' + Number(amount || 0).toFixed(2);
-    }
+	    function money(amount) {
+	        return 'GHS ' + Number(amount || 0).toLocaleString(undefined, {
+	            minimumFractionDigits: 2,
+	            maximumFractionDigits: 2
+	        });
+	    }
 
     function openReceiptModalByUrl(titleText, receiptUrl) {
         const modal = document.getElementById('receiptModalBackdrop');

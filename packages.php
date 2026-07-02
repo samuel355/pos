@@ -743,7 +743,10 @@ $productsForJs = array_map(function ($product) {
     window.PACKAGE_PRODUCTS = <?php echo json_encode($productsForJs); ?>;
 
     function packageMoney(amount) {
-        return 'GHS ' + Number(amount || 0).toFixed(2);
+        return 'GHS ' + Number(amount || 0).toLocaleString(undefined, {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
     }
 
     function updatePackageTotals(form) {

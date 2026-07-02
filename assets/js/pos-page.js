@@ -16,7 +16,10 @@ const API_TABLE_ORDERS = 'api/get_table_orders.php';
 const API_SAVE_SALE = 'api/save_sale.php';
 
 function money(amount) {
-    return 'GHS ' + Number(amount || 0).toFixed(2);
+    return 'GHS ' + Number(amount || 0).toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    });
 }
 
 function escapeHtml(value) {
