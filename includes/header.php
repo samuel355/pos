@@ -15,7 +15,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-    <title>GotPOS - Clean POS System</title>
+    <title>KT POS - Clean POS System</title>
     <link rel="shortcut icon" href="./assets/favicon-B-3ALmIB.ico" />
 
     <link rel="stylesheet" crossorigin href="./assets/admin-Bly6avC4.css" />
@@ -70,6 +70,16 @@
             visibility: visible !important;
             opacity: 1 !important;
             color: #18181a !important;
+        }
+
+        .main-sidebar .sidebar-logo .kt-logo-badge {
+            color: #ffffff !important;
+        }
+
+        .main-sidebar .sidebar-logo .kt-logo-text {
+            color: transparent !important;
+            -webkit-background-clip: text !important;
+            background-clip: text !important;
         }
 
         .main-sidebar .nav-menu-title span {
@@ -475,6 +485,50 @@
             border-radius: 999px;
             background: var(--dx-primary, #ff762d);
         }
+
+        .kt-logo {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+        }
+
+        .kt-logo-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #ff762d, #f59e0b);
+            color: #ffffff;
+            font-size: 14px;
+            font-weight: 800;
+            letter-spacing: .02em;
+            box-shadow: 0 6px 16px rgba(245, 158, 11, .35);
+        }
+
+        .kt-logo-text {
+            font-size: 20px;
+            font-weight: 800;
+            letter-spacing: .03em;
+            background: linear-gradient(135deg, #4338ca, #6366f1 60%, #a855f7);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        .kt-logo.kt-logo-topbar .kt-logo-badge {
+            width: 28px;
+            height: 28px;
+            font-size: 12px;
+            border-radius: 8px;
+        }
+
+        .kt-logo.kt-logo-topbar .kt-logo-text {
+            font-size: 17px;
+        }
     </style>
 </head>
 
@@ -482,8 +536,9 @@
     <header class="main-topbar" id="main-topbar">
         <div class="navbar-brand gap-2">
             <div class="logos">
-                <a href="dashboard.php" aria-label="Topbar Logo">
-                    <img src="./assets/main-logo-CWEU2RA-.png" height="22" alt="Logo" class="logo-dark" />
+                <a href="dashboard.php" aria-label="Topbar Logo" class="kt-logo kt-logo-topbar">
+                    <span class="kt-logo-badge">KT</span>
+                    <span class="kt-logo-text">POS</span>
                 </a>
             </div>
             <button type="button" id="toggleSidebar" class="sidebar-toggle btn p-0" aria-label="sidebar-toggle">

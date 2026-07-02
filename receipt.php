@@ -30,10 +30,54 @@ if (empty($saleIds)) {
 $salePlaceholders = implode(",", array_fill(0, count($saleIds), "?"));
 
 $stmt = $pdo->prepare("
-    SELECT s.*, u.username, rt.name as table_name
+    SELECT
+        s.*,
+        u.username,
+        rt.name AS table_name,
+        COALESCE(s.customer_name, (
+            SELECT tb.customer_name
+            FROM table_bookings tb
+            WHERE tb.sale_id = s.id
+               OR (
+                    s.table_id IS NOT NULL
+                    AND tb.table_id = s.table_id
+                    AND s.created_at >= tb.booked_at
+                    AND (tb.closed_at IS NULL OR s.created_at <= tb.closed_at)
+               )
+            ORDER BY tb.id DESC
+            LIMIT 1
+        )) AS display_customer_name,
+        COALESCE(s.customer_contact, (
+            SELECT tb.customer_contact
+            FROM table_bookings tb
+            WHERE tb.sale_id = s.id
+               OR (
+                    s.table_id IS NOT NULL
+                    AND tb.table_id = s.table_id
+                    AND s.created_at >= tb.booked_at
+                    AND (tb.closed_at IS NULL OR s.created_at <= tb.closed_at)
+               )
+            ORDER BY tb.id DESC
+            LIMIT 1
+        )) AS display_customer_contact
     FROM sales s
     LEFT JOIN users u ON s.user_id = u.id
-    LEFT JOIN restaurant_tables rt ON s.table_id = rt.id
+    LEFT JOIN restaurant_tables rt ON rt.id = COALESCE(
+        s.table_id,
+        (
+            SELECT tb.table_id
+            FROM table_bookings tb
+            WHERE tb.sale_id = s.id
+               OR (
+                    s.table_id IS NOT NULL
+                    AND tb.table_id = s.table_id
+                    AND s.created_at >= tb.booked_at
+                    AND (tb.closed_at IS NULL OR s.created_at <= tb.closed_at)
+               )
+            ORDER BY tb.id DESC
+            LIMIT 1
+        )
+    )
     WHERE s.id IN ($salePlaceholders)
 ");
 $stmt->execute($saleIds);
@@ -127,6 +171,74 @@ function money($amount)
 
 $firstReceiptId = (int) $receipts[0]["sale"]["id"];
 $isBatch = count($receipts) > 1;
+$includedSaleIds = array_map(function ($receipt) {
+  return (int) $receipt["sale"]["id"];
+}, $receipts);
+
+// A batch of linked sales (a table's package + its extra drink rounds) prints
+// as one combined bill with one total, not one full receipt per round.
+if ($isBatch) {
+  $combinedItems = [];
+  $combinedSubtotal = 0;
+  $combinedDiscount = 0;
+  $combinedTax = 0;
+  $combinedFinal = 0;
+  $paymentMethods = [];
+  $cashiers = [];
+  $tableName = null;
+  $customerName = null;
+  $customerContact = null;
+  $latestCreatedAt = null;
+
+  foreach ($receipts as $receipt) {
+    $sale = $receipt["sale"];
+
+    $combinedSubtotal += (float) $sale["total_amount"];
+    $combinedDiscount += (float) $sale["discount"];
+    $combinedTax += (float) $sale["tax"];
+    $combinedFinal += (float) $sale["final_amount"];
+
+    $paymentMethods[$sale["payment_method"] ?: "Cash"] = true;
+    $cashiers[$sale["username"] ?: "N/A"] = true;
+
+    if (!empty($sale["table_name"])) {
+      $tableName = $sale["table_name"];
+    }
+
+    if (!empty($sale["display_customer_name"])) {
+      $customerName = $sale["display_customer_name"];
+    }
+
+    if (!empty($sale["display_customer_contact"])) {
+      $customerContact = $sale["display_customer_contact"];
+    }
+
+    if ($latestCreatedAt === null || $sale["created_at"] > $latestCreatedAt) {
+      $latestCreatedAt = $sale["created_at"];
+    }
+
+    foreach ($receipt["items"] as $item) {
+      $combinedItems[] = $item;
+    }
+  }
+
+  $receipts = [[
+    "sale" => [
+      "id" => $firstReceiptId,
+      "created_at" => $latestCreatedAt,
+      "username" => implode(", ", array_keys($cashiers)),
+      "payment_method" => implode(", ", array_keys($paymentMethods)),
+      "table_name" => $tableName,
+      "display_customer_name" => $customerName,
+      "display_customer_contact" => $customerContact,
+      "total_amount" => $combinedSubtotal,
+      "discount" => $combinedDiscount,
+      "tax" => $combinedTax,
+      "final_amount" => $combinedFinal,
+    ],
+    "items" => $combinedItems,
+  ]];
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -221,6 +333,13 @@ $isBatch = count($receipts) > 1;
             box-shadow: 0 10px 30px rgba(15, 23, 42, .08);
             font-family: monospace;
             font-size: 13px;
+        }
+
+        .kt-mark {
+            padding: 1px 6px;
+            border-radius: 4px;
+            color: #ffffff;
+            background: linear-gradient(135deg, #ff762d, #f59e0b);
         }
 
         .text-center {
@@ -339,7 +458,7 @@ $isBatch = count($receipts) > 1;
             <h2>Receipt Preview</h2>
             <p class="receipt-number">
                 <?php if ($isBatch): ?>
-                    Receipts: <strong><?php echo (int) count($receipts); ?></strong>
+                    Table Bill: <strong><?php echo (int) count($includedSaleIds); ?> orders combined</strong>
                     <span>— review before printing.</span>
                 <?php else: ?>
                     Receipt No.: <strong><?php echo $firstReceiptId; ?></strong>
@@ -367,17 +486,34 @@ $isBatch = count($receipts) > 1;
             <?php foreach ($copies as $copyLabel): ?>
                 <div class="receipt-copy">
                     <div class="text-center">
-                        <h3>GotPOS System</h3>
+                        <h3><span class="kt-mark">KT</span> POS System</h3>
                         <p>Main Branch</p>
-                        <p class="receipt-number">Receipt No.: <strong><?php echo (int) $sale[
-                          "id"
-                        ]; ?></strong></p>
+                        <?php if ($isBatch): ?>
+                            <p class="receipt-number">Table Bill</p>
+                            <p class="small muted">Includes Receipts: <?php echo e(implode(", ", $includedSaleIds)); ?></p>
+                        <?php else: ?>
+                            <p class="receipt-number">Receipt No.: <strong><?php echo (int) $sale[
+                              "id"
+                            ]; ?></strong></p>
+                        <?php endif; ?>
                         <p><?php echo e($sale["created_at"]); ?></p>
                     </div>
 
                     <hr>
 
                     <div class="small">
+                        <?php if (!empty($sale["display_customer_name"])): ?>
+                        <div class="d-flex">
+                            <span>Customer:</span>
+                            <span><?php echo e($sale["display_customer_name"]); ?></span>
+                        </div>
+                        <?php endif; ?>
+                        <?php if (!empty($sale["display_customer_contact"])): ?>
+                        <div class="d-flex">
+                            <span>Phone:</span>
+                            <span><?php echo e($sale["display_customer_contact"]); ?></span>
+                        </div>
+                        <?php endif; ?>
                         <div class="d-flex">
                             <span>Cashier:</span>
                             <span><?php echo e($sale["username"] ?: "N/A"); ?></span>
@@ -386,13 +522,10 @@ $isBatch = count($receipts) > 1;
                             <span>Payment:</span>
                             <span><?php echo e($sale["payment_method"] ?: "Cash"); ?></span>
                         </div>
-                        <?php if ($sale["table_id"]): ?>
+                        <?php if (!empty($sale["table_name"])): ?>
                         <div class="d-flex">
                             <span>Table:</span>
-                            <span><?php echo e(
-                              $sale["table_name"] ?:
-                                "Table #" . $sale["table_id"],
-                            ); ?></span>
+                            <span><?php echo e($sale["table_name"]); ?></span>
                         </div>
                         <?php endif; ?>
                     </div>

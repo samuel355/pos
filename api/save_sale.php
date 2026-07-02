@@ -4,6 +4,7 @@ session_start();
 header('Content-Type: application/json');
 
 require_once '../config/db.php';
+require_once '../includes/table_packages.php';
 
 if (!isset($_SESSION['user_id'])) {
     echo json_encode([
@@ -12,6 +13,8 @@ if (!isset($_SESSION['user_id'])) {
     ]);
     exit();
 }
+
+ensureTablePackageSchema($pdo);
 
 $data = json_decode(file_get_contents('php://input'), true);
 
@@ -28,6 +31,16 @@ $paymentMethod = isset($data['payment_method']) ? trim((string)$data['payment_me
 $tableId = isset($data['table_id']) && $data['table_id'] !== '' && $data['table_id'] !== null
     ? (int)$data['table_id']
     : null;
+$customerName = isset($data['customer_name']) ? trim((string)$data['customer_name']) : '';
+$customerContact = isset($data['customer_contact']) ? trim((string)$data['customer_contact']) : '';
+
+if (mb_strlen($customerName) > 120) {
+    $customerName = mb_substr($customerName, 0, 120);
+}
+
+if (mb_strlen($customerContact) > 50) {
+    $customerContact = mb_substr($customerContact, 0, 50);
+}
 
 if (empty($items)) {
     echo json_encode([
@@ -114,15 +127,17 @@ try {
     $finalAmount = $calculatedTotal + $tax - $discount;
 
     $saleStmt = $pdo->prepare("
-        INSERT INTO sales 
-            (user_id, table_id, total_amount, discount, tax, final_amount, payment_method)
-        VALUES 
-            (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO sales
+            (user_id, table_id, customer_name, customer_contact, total_amount, discount, tax, final_amount, payment_method)
+        VALUES
+            (?, ?, ?, ?, ?, ?, ?, ?, ?)
     ");
 
     $saleStmt->execute([
         (int)$_SESSION['user_id'],
         $tableId,
+        $customerName !== '' ? $customerName : null,
+        $customerContact !== '' ? $customerContact : null,
         $calculatedTotal,
         $discount,
         $tax,

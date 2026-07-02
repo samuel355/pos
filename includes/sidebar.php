@@ -14,9 +14,9 @@ function ariaCurrent($page, $currentPage)
 
 <aside class="main-sidebar" id="main-sidebar">
     <div class="sidebar-logo px-5 py-4 border-bottom">
-        <a href="dashboard.php" class="d-flex align-items-center gap-2">
-            <img src="./assets/logo-sm-dark-JvuhiCGp.png" height="28" alt="Logo">
-            <span class="fw-semibold fs-17 text-body">GotPOS</span>
+        <a href="dashboard.php" class="kt-logo">
+            <span class="kt-logo-badge">KT</span>
+            <span class="kt-logo-text">POS</span>
         </a>
     </div>
 

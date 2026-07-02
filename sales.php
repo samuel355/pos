@@ -152,7 +152,7 @@ $stmt = $pdo->prepare("
     SELECT
         s.*,
         u.username,
-        (
+        COALESCE(s.customer_name, (
             SELECT tb.customer_name
             FROM table_bookings tb
             WHERE tb.sale_id = s.id
@@ -164,7 +164,7 @@ $stmt = $pdo->prepare("
                )
             ORDER BY tb.id DESC
             LIMIT 1
-        ) AS customer_name
+        )) AS resolved_customer_name
     FROM sales s
     LEFT JOIN users u ON s.user_id = u.id
     $where
@@ -237,6 +237,63 @@ $summary = $summaryStmt->fetch();
         .sale-item-row .subtotal {
             display: none;
         }
+    }
+
+    .receipt-modal-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 9998;
+        background: rgba(15, 23, 42, .55);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+    }
+
+    .receipt-modal-backdrop.show {
+        display: flex;
+    }
+
+    .receipt-modal {
+        width: min(960px, 100%);
+        height: min(92vh, 900px);
+        background: #ffffff;
+        border-radius: 16px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 24px 80px rgba(15, 23, 42, .35);
+    }
+
+    .receipt-modal-header {
+        padding: 14px 18px;
+        border-bottom: 1px solid #e5e7eb;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .receipt-modal-header h6 {
+        margin: 0;
+        font-size: 16px;
+    }
+
+    .receipt-modal-actions {
+        display: flex;
+        gap: 8px;
+    }
+
+    .receipt-modal-body {
+        flex: 1;
+        background: #f3f4f6;
+    }
+
+    .receipt-modal-body iframe {
+        width: 100%;
+        height: 100%;
+        border: 0;
+        background: #ffffff;
     }
 </style>
 
@@ -358,7 +415,7 @@ $summary = $summaryStmt->fetch();
                             $saleSearchText = strtolower(
                                     'receipt no ' . $sale["id"] . ' receipt ' . $sale["id"] . ' ' .
                                     ($sale["username"] ?: "N/A") . ' ' .
-                                    ($sale["customer_name"] ?: "walk-in customer") . ' ' .
+                                    ($sale["resolved_customer_name"] ?: "walk-in customer") . ' ' .
                                     ($sale["payment_method"] ?: "Cash") . ' ' .
                                     $sale["created_at"] . ' ' .
                                     $sale["final_amount"]
@@ -373,7 +430,7 @@ $summary = $summaryStmt->fetch();
 
                                 <td><?php echo e($sale["username"] ?: "N/A"); ?></td>
 
-                                <td><?php echo e($sale["customer_name"] ?: "Walk-in Customer"); ?></td>
+                                <td><?php echo e($sale["resolved_customer_name"] ?: "Walk-in Customer"); ?></td>
 
                                 <td><?php echo e($sale["payment_method"] ?: "Cash"); ?></td>
 
@@ -408,11 +465,11 @@ $summary = $summaryStmt->fetch();
                                             Edit
                                         </button>
 
-                                        <a href="receipt.php?id=<?php echo (int)$sale["id"]; ?>"
-                                           target="_blank"
-                                           class="btn btn-sm btn-secondary">
+                                        <button type="button"
+                                                class="btn btn-sm btn-secondary print-sale-btn"
+                                                data-sale-id="<?php echo (int)$sale["id"]; ?>">
                                             Print
-                                        </a>
+                                        </button>
 
                                         <a href="sales.php?delete=<?php echo (int)$sale["id"]; ?>"
                                            class="btn btn-sm btn-danger"
@@ -454,14 +511,34 @@ $summary = $summaryStmt->fetch();
             </div>
 
             <div class="modal-footer">
-                <a href="#" target="_blank" id="viewSaleReceiptBtn" class="btn btn-primary">
+                <button type="button" id="viewSaleReceiptBtn" class="btn btn-primary">
                     <i class="ri-printer-line me-1"></i>
                     Print Receipt
-                </a>
+                </button>
                 <button type="button" class="btn btn-light border" data-bs-dismiss="modal">
                     Close
                 </button>
             </div>
+        </div>
+    </div>
+</div>
+
+<div id="receiptModalBackdrop" class="receipt-modal-backdrop">
+    <div class="receipt-modal">
+        <div class="receipt-modal-header">
+            <h6 id="receiptModalTitle">Receipt Preview</h6>
+            <div class="receipt-modal-actions">
+                <button type="button" class="btn btn-primary btn-sm" id="printReceiptBtn">
+                    Print
+                </button>
+                <button type="button" class="btn btn-light border btn-sm" id="closeReceiptModalBtn">
+                    Close
+                </button>
+            </div>
+        </div>
+
+        <div class="receipt-modal-body">
+            <iframe id="receiptPreviewFrame" src="about:blank"></iframe>
         </div>
     </div>
 </div>
@@ -528,6 +605,54 @@ $summary = $summaryStmt->fetch();
 <script>
     function money(amount) {
         return 'GHS ' + Number(amount || 0).toFixed(2);
+    }
+
+    function openReceiptModalByUrl(titleText, receiptUrl) {
+        const modal = document.getElementById('receiptModalBackdrop');
+        const frame = document.getElementById('receiptPreviewFrame');
+        const title = document.getElementById('receiptModalTitle');
+
+        title.innerText = titleText;
+        frame.src = receiptUrl;
+        modal.classList.add('show');
+    }
+
+    function openReceiptModal(saleId) {
+        openReceiptModalByUrl('Receipt No.: ' + saleId, 'receipt.php?' + new URLSearchParams({ id: saleId, embedded: '1' }).toString());
+    }
+
+    function closeReceiptModal() {
+        const modal = document.getElementById('receiptModalBackdrop');
+        const frame = document.getElementById('receiptPreviewFrame');
+
+        modal.classList.remove('show');
+        frame.src = 'about:blank';
+    }
+
+    function printReceiptFromModal() {
+        const frame = document.getElementById('receiptPreviewFrame');
+
+        if (!frame || !frame.contentWindow) {
+            closeReceiptModal();
+            return;
+        }
+
+        const closeAfterPrint = function () {
+            setTimeout(function () {
+                closeReceiptModal();
+            }, 300);
+        };
+
+        frame.contentWindow.onafterprint = closeAfterPrint;
+
+        frame.contentWindow.focus();
+        frame.contentWindow.print();
+
+        setTimeout(function () {
+            if (document.hasFocus()) {
+                closeReceiptModal();
+            }
+        }, 1200);
     }
 
     function formatDate(date) {
@@ -705,7 +830,7 @@ $summary = $summaryStmt->fetch();
 
                 title.innerText = saleId;
                 subtitle.innerText = 'Loading sale details...';
-                receiptBtn.href = 'receipt.php?id=' + encodeURIComponent(saleId);
+                receiptBtn.dataset.saleId = saleId;
                 body.innerHTML = '<div class="text-center py-5 text-muted"><div class="spinner-border text-primary mb-3" role="status" aria-hidden="true"></div><div>Loading sale details...</div></div>';
 
                 const modal = new bootstrap.Modal(document.getElementById('viewSaleModal'));
@@ -867,6 +992,27 @@ $summary = $summaryStmt->fetch();
                     body.innerHTML = '<div class="alert alert-danger mb-0">System error while loading sale.</div>';
                 }
             });
+        });
+
+        document.querySelectorAll('.print-sale-btn').forEach(function (button) {
+            button.addEventListener('click', function () {
+                openReceiptModal(this.dataset.saleId);
+            });
+        });
+
+        document.getElementById('viewSaleReceiptBtn').addEventListener('click', function () {
+            if (this.dataset.saleId) {
+                openReceiptModal(this.dataset.saleId);
+            }
+        });
+
+        document.getElementById('closeReceiptModalBtn').addEventListener('click', closeReceiptModal);
+        document.getElementById('printReceiptBtn').addEventListener('click', printReceiptFromModal);
+
+        document.getElementById('receiptModalBackdrop').addEventListener('click', function (event) {
+            if (event.target === this) {
+                closeReceiptModal();
+            }
         });
 
         applySalesFilters();

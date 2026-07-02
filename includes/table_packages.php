@@ -43,6 +43,14 @@ function ensureTablePackageSchema(PDO $pdo): void
         $pdo->exec("ALTER TABLE restaurant_tables ADD COLUMN customer_contact VARCHAR(50) DEFAULT NULL AFTER reserved_by");
     }
 
+    if (tableExists($pdo, "sales") && !tableColumnExists($pdo, "sales", "customer_name")) {
+        $pdo->exec("ALTER TABLE sales ADD COLUMN customer_name VARCHAR(120) DEFAULT NULL AFTER table_id");
+    }
+
+    if (tableExists($pdo, "sales") && !tableColumnExists($pdo, "sales", "customer_contact")) {
+        $pdo->exec("ALTER TABLE sales ADD COLUMN customer_contact VARCHAR(50) DEFAULT NULL AFTER customer_name");
+    }
+
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS table_packages (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -104,6 +112,41 @@ function ensureTablePackageSchema(PDO $pdo): void
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     ");
 
+}
+
+function createPackageSale(PDO $pdo, int $tableId, int $packageId, int $userId): int
+{
+    $stmt = $pdo->prepare("
+        SELECT tp.id, tp.name, tp.price, tp.product_id
+        FROM table_packages tp
+        WHERE tp.id = ? AND tp.is_active = 1
+        LIMIT 1
+    ");
+    $stmt->execute([$packageId]);
+    $package = $stmt->fetch();
+
+    if (!$package) {
+        throw new Exception("Selected package does not exist.");
+    }
+
+    if (empty($package["product_id"])) {
+        throw new Exception("Selected package is missing its POS product link.");
+    }
+
+    $saleStmt = $pdo->prepare("
+        INSERT INTO sales (user_id, table_id, total_amount, discount, tax, final_amount, payment_method)
+        VALUES (?, ?, ?, 0, 0, ?, 'Cash')
+    ");
+    $saleStmt->execute([$userId, $tableId, $package["price"], $package["price"]]);
+    $saleId = (int)$pdo->lastInsertId();
+
+    $itemStmt = $pdo->prepare("
+        INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, subtotal)
+        VALUES (?, ?, 1, ?, ?)
+    ");
+    $itemStmt->execute([$saleId, (int)$package["product_id"], $package["price"], $package["price"]]);
+
+    return $saleId;
 }
 
 function ensureCategory(PDO $pdo, string $name): int

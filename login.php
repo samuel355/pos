@@ -38,11 +38,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login | GotPOS</title>
+    <title>Login | KT POS</title>
     <link rel="stylesheet" crossorigin href="./assets/admin-Bly6avC4.css">
     <style>
         body {
-            background-color: #f4f7f6;
+            background: linear-gradient(160deg, #312e81 0%, #4f46e5 45%, #ff762d 130%);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -55,13 +55,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             max-width: 400px;
             padding: 2rem;
             background: white;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border-radius: 16px;
+            box-shadow: 0 20px 50px rgba(15, 23, 42, .35);
         }
 
         .logo {
-            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
             margin-bottom: 2rem;
+        }
+
+        .logo-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 46px;
+            height: 46px;
+            border-radius: 13px;
+            background: linear-gradient(135deg, #ff762d, #f59e0b);
+            color: #ffffff;
+            font-size: 18px;
+            font-weight: 800;
+            letter-spacing: .02em;
+            box-shadow: 0 10px 24px rgba(245, 158, 11, .4);
+        }
+
+        .logo-text {
+            font-size: 28px;
+            font-weight: 800;
+            letter-spacing: .03em;
+            background: linear-gradient(135deg, #4338ca, #6366f1 60%, #a855f7);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
         }
     </style>
 </head>
@@ -69,7 +97,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <body>
     <div class="login-card">
         <div class="logo">
-            <img src="./assets/main-logo-CWEU2RA-.png" alt="Logo" height="30">
+            <span class="logo-badge">KT</span>
+            <span class="logo-text">POS</span>
         </div>
         <h4 class="text-center mb-4">Sign In</h4>
         <?php if ($error): ?>

@@ -30,10 +30,20 @@ function tableStatsQuery()
             rt.serve_status,
             rt.created_at,
             u.username AS serving_username,
+            tb.id AS booking_id,
+            tb.customer_name AS booking_customer_name,
+            tb.customer_contact AS booking_customer_contact,
+            tb.booked_at AS booking_booked_at,
+            tp.id AS booking_package_id,
+            tp.name AS booking_package_name,
+            tp.price AS booking_package_price,
+            tp.tier AS booking_package_tier,
             COALESCE(stats.order_count, 0) AS order_count,
             COALESCE(stats.total_amount, 0) AS total_amount
         FROM restaurant_tables rt
         LEFT JOIN users u ON u.id = rt.serving_user_id
+        LEFT JOIN table_bookings tb ON tb.table_id = rt.id AND tb.status = 'open'
+        LEFT JOIN table_packages tp ON tp.id = tb.package_id
         LEFT JOIN (
             SELECT
                 table_id,
@@ -70,59 +80,140 @@ try {
 
     $action = isset($data['action']) ? trim((string)$data['action']) : '';
 
-    if ($method === 'POST' && $action === 'reserve') {
+    if ($method === 'POST' && $action === 'book') {
         $tableId = isset($data['id']) ? (int)$data['id'] : 0;
-        $reservedBy = trim((string)($data['reserved_by'] ?? ''));
+        $packageId = isset($data['package_id']) ? (int)$data['package_id'] : 0;
+        $customerName = trim((string)($data['customer_name'] ?? ''));
+        $customerContact = trim((string)($data['customer_contact'] ?? ''));
 
-        if ($tableId <= 0) {
-            throw new Exception('Invalid table ID.');
+        if ($tableId <= 0 || $packageId <= 0) {
+            throw new Exception('Select a valid table and package.');
         }
 
-        if ($reservedBy === '') {
-            throw new Exception('Guest name is required to reserve a table.');
+        if ($customerName === '') {
+            throw new Exception('Customer name is required.');
         }
 
-        if (mb_strlen($reservedBy) > 100) {
-            throw new Exception('Guest name must be 100 characters or fewer.');
+        if (mb_strlen($customerName) > 120) {
+            throw new Exception('Customer name must be 120 characters or fewer.');
         }
 
-        $stmt = $pdo->prepare("
-            UPDATE restaurant_tables
-            SET reserved_by = ?, reserved_at = NOW()
-            WHERE id = ? AND status = 'Active'
-        ");
-        $stmt->execute([$reservedBy, $tableId]);
+        $openCheck = $pdo->prepare("SELECT COUNT(*) FROM table_bookings WHERE table_id = ? AND status = 'open'");
+        $openCheck->execute([$tableId]);
 
-        if ($stmt->rowCount() === 0) {
-            throw new Exception('Table not found or inactive.');
+        if ((int)$openCheck->fetchColumn() > 0) {
+            throw new Exception('This table already has an open booking.');
+        }
+
+        $pdo->beginTransaction();
+
+        try {
+            $saleId = createPackageSale($pdo, $tableId, $packageId, $userId);
+
+            $bookingStmt = $pdo->prepare("
+                INSERT INTO table_bookings
+                    (table_id, package_id, sale_id, customer_name, customer_contact, created_by)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ");
+            $bookingStmt->execute([
+                $tableId,
+                $packageId,
+                $saleId,
+                $customerName,
+                $customerContact,
+                $userId,
+            ]);
+
+            $reserveStmt = $pdo->prepare("
+                UPDATE restaurant_tables
+                SET reserved_by = ?, customer_contact = ?, reserved_at = NOW(), serving_user_id = ?, serve_status = 'serving'
+                WHERE id = ?
+            ");
+            $reserveStmt->execute([$customerName, $customerContact, $userId, $tableId]);
+
+            $pdo->commit();
+        } catch (Exception $inner) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $inner;
         }
 
         echo json_encode([
             'success' => true,
             'table' => fetchTableById($pdo, $tableId),
-            'message' => 'Table reserved for ' . $reservedBy . '.',
+            'sale_id' => $saleId,
+            'message' => 'Table booked and package sale created.',
         ]);
         exit();
     }
 
-    if ($method === 'POST' && $action === 'cancel_reserve') {
+    if ($method === 'POST' && $action === 'close') {
         $tableId = isset($data['id']) ? (int)$data['id'] : 0;
 
         if ($tableId <= 0) {
             throw new Exception('Invalid table ID.');
         }
 
-        $stmt = $pdo->prepare('
-            UPDATE restaurant_tables
-            SET reserved_by = NULL, reserved_at = NULL
-            WHERE id = ?
-        ');
+        $stmt = $pdo->prepare("SELECT id, table_id, booked_at FROM table_bookings WHERE table_id = ? AND status = 'open' LIMIT 1");
         $stmt->execute([$tableId]);
+        $booking = $stmt->fetch();
+
+        if (!$booking) {
+            throw new Exception('This table has no open booking.');
+        }
+
+        $pdo->beginTransaction();
+
+        try {
+            // Snapshot every sale tied to this booking (the package sale plus every
+            // drink round added while serving) before we unlink them, so the final
+            // combined bill can still be printed after the table is closed.
+            $saleIdsStmt = $pdo->prepare("
+                SELECT id
+                FROM sales
+                WHERE table_id = ?
+                  AND created_at >= ?
+                ORDER BY created_at ASC
+            ");
+            $saleIdsStmt->execute([$tableId, $booking['booked_at']]);
+            $closedSaleIds = array_map('intval', array_column($saleIdsStmt->fetchAll(), 'id'));
+
+            $close = $pdo->prepare("UPDATE table_bookings SET status = 'closed', closed_at = NOW() WHERE id = ?");
+            $close->execute([(int)$booking['id']]);
+
+            $unlinkSales = $pdo->prepare('
+                UPDATE sales
+                SET table_id = NULL
+                WHERE table_id = ?
+                  AND created_at >= ?
+            ');
+            $unlinkSales->execute([$tableId, $booking['booked_at']]);
+
+            $resetTable = $pdo->prepare("
+                UPDATE restaurant_tables
+                SET reserved_by = NULL,
+                    customer_contact = NULL,
+                    reserved_at = NULL,
+                    serving_user_id = NULL,
+                    serve_status = 'none'
+                WHERE id = ?
+            ");
+            $resetTable->execute([$tableId]);
+
+            $pdo->commit();
+        } catch (Exception $inner) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $inner;
+        }
 
         echo json_encode([
             'success' => true,
             'table' => fetchTableById($pdo, $tableId),
-            'message' => 'Reservation cleared.',
+            'sale_ids' => $closedSaleIds,
+            'message' => 'Table closed. Final bill is ready.',
         ]);
         exit();
     }

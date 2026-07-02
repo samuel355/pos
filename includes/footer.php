@@ -1,7 +1,7 @@
     </div><!-- container-fluid -->
   </div><!-- page-wrapper -->
   <footer class="main-footer">
-    <p class="mb-0 text-muted"><script>document.write(new Date().getFullYear())</script> © GotPOS.</p>
+    <p class="mb-0 text-muted"><script>document.write(new Date().getFullYear())</script> © KT POS.</p>
   </footer>
 </div><!-- min-vh-100 -->
 

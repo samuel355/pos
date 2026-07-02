@@ -19,41 +19,6 @@ function redirectTables($query = "") {
     exit;
 }
 
-function createPackageSale(PDO $pdo, int $tableId, int $packageId, int $userId): int
-{
-    $stmt = $pdo->prepare("
-        SELECT tp.id, tp.name, tp.price, tp.product_id
-        FROM table_packages tp
-        WHERE tp.id = ? AND tp.is_active = 1
-        LIMIT 1
-    ");
-    $stmt->execute([$packageId]);
-    $package = $stmt->fetch();
-
-    if (!$package) {
-        throw new Exception("Selected package does not exist.");
-    }
-
-    if (empty($package["product_id"])) {
-        throw new Exception("Selected package is missing its POS product link.");
-    }
-
-    $saleStmt = $pdo->prepare("
-        INSERT INTO sales (user_id, table_id, total_amount, discount, tax, final_amount, payment_method)
-        VALUES (?, ?, ?, 0, 0, ?, 'Cash')
-    ");
-    $saleStmt->execute([$userId, $tableId, $package["price"], $package["price"]]);
-    $saleId = (int)$pdo->lastInsertId();
-
-    $itemStmt = $pdo->prepare("
-        INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, subtotal)
-        VALUES (?, ?, 1, ?, ?)
-    ");
-    $itemStmt->execute([$saleId, (int)$package["product_id"], $package["price"], $package["price"]]);
-
-    return $saleId;
-}
-
 function inferPackageItemType(string $name): string
 {
     $upper = mb_strtoupper($name);
@@ -409,6 +374,22 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
             $pdo->beginTransaction();
 
+            // Snapshot every sale tied to this booking (the package sale plus every
+            // drink round added while serving) before we unlink them, so the final
+            // combined bill can still be printed after the table is closed.
+            $saleIdsStmt = $pdo->prepare("
+                SELECT id
+                FROM sales
+                WHERE table_id = ?
+                  AND created_at >= ?
+                ORDER BY created_at ASC
+            ");
+            $saleIdsStmt->execute([
+                (int)$booking["table_id"],
+                $booking["booked_at"]
+            ]);
+            $closedSaleIds = array_map("intval", array_column($saleIdsStmt->fetchAll(), "id"));
+
             $close = $pdo->prepare("UPDATE table_bookings SET status = 'closed', closed_at = NOW() WHERE id = ?");
             $close->execute([$bookingId]);
 
@@ -435,7 +416,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             $table->execute([(int)$booking["table_id"]]);
 
             $pdo->commit();
-            redirectTables("closed=1");
+            redirectTables("closed=1&receipt_ids=" . implode(",", $closedSaleIds));
         }
     } catch (Exception $ex) {
         if ($pdo->inTransaction()) {
@@ -588,6 +569,29 @@ $tables = $tablesStmt->fetchAll();
                 data-title="Package Receipt"
                 data-url="receipt.php?id=<?php echo (int)$_GET["receipt"]; ?>">
             Print Package Receipt
+        </button>
+    </div>
+<?php endif; ?>
+
+<?php
+    $closedReceiptIds = [];
+    if (isset($_GET["receipt_ids"])) {
+        foreach (explode(",", (string)$_GET["receipt_ids"]) as $rawId) {
+            $id = (int)trim($rawId);
+            if ($id > 0) {
+                $closedReceiptIds[] = $id;
+            }
+        }
+    }
+?>
+<?php if (!empty($closedReceiptIds)): ?>
+    <div class="alert alert-info d-flex justify-content-between align-items-center">
+        <span>Table closed. Final combined bill (package + all drinks added) is ready.</span>
+        <button type="button"
+                class="btn btn-sm btn-primary open-receipt-modal"
+                data-title="Final Table Bill"
+                data-url="receipt.php?ids=<?php echo e(implode(",", $closedReceiptIds)); ?>">
+            Print Final Bill
         </button>
     </div>
 <?php endif; ?>

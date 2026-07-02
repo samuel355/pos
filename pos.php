@@ -38,6 +38,19 @@ try {
   $tables = [];
 }
 
+$activePackages = [];
+try {
+  $stmt = $pdo->query("
+    SELECT id, name, price, capacity, tier
+    FROM table_packages
+    WHERE is_active = 1
+    ORDER BY price ASC
+  ");
+  $activePackages = $stmt->fetchAll();
+} catch (PDOException $e) {
+  $activePackages = [];
+}
+
 $isAdmin = isset($_SESSION["role"]) && $_SESSION["role"] === "admin";
 $currentUserId = (int) $_SESSION["user_id"];
 $currentUsername = $_SESSION["username"] ?? "Staff";
@@ -83,7 +96,7 @@ function categoryImage($path)
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>POS System</title>
+    <title>KT POS System</title>
 
     <link rel="shortcut icon" href="./assets/favicon-B-3ALmIB.ico">
     <link rel="stylesheet" crossorigin href="./assets/admin-Bly6avC4.css">
@@ -94,6 +107,50 @@ function categoryImage($path)
     <script type="module" crossorigin src="./assets/src/pos-yOGPzrsS.js"></script>
 
     <style>
+        .kt-logo {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+        }
+
+        .kt-logo-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #ff762d, #f59e0b);
+            color: #ffffff;
+            font-size: 14px;
+            font-weight: 800;
+            letter-spacing: .02em;
+            box-shadow: 0 6px 16px rgba(245, 158, 11, .35);
+        }
+
+        .kt-logo-text {
+            font-size: 20px;
+            font-weight: 800;
+            letter-spacing: .03em;
+            background: linear-gradient(135deg, #4338ca, #6366f1 60%, #a855f7);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        .kt-logo.kt-logo-topbar .kt-logo-badge {
+            width: 28px;
+            height: 28px;
+            font-size: 12px;
+            border-radius: 8px;
+        }
+
+        .kt-logo.kt-logo-topbar .kt-logo-text {
+            font-size: 17px;
+        }
+
         .pos-product-card {
             cursor: pointer;
             transition: all .2s ease;
@@ -293,11 +350,13 @@ function categoryImage($path)
         .table-card.state-serving::before { background: linear-gradient(90deg, #3b82f6, #2563eb); }
         .table-card.state-ready::before { background: linear-gradient(90deg, #f59e0b, #d97706); }
         .table-card.state-occupied::before { background: linear-gradient(90deg, #f97316, #ea580c); }
+        .table-card.state-booked::before { background: linear-gradient(90deg, #d97706, #b45309); }
 
         .table-card.state-reserved { background: linear-gradient(135deg, rgba(168, 85, 247, 0.05) 0%, rgba(217, 70, 239, 0.03) 100%); }
         .table-card.state-serving { background: linear-gradient(135deg, rgba(59, 130, 246, 0.05) 0%, rgba(37, 99, 235, 0.03) 100%); }
         .table-card.state-ready { background: linear-gradient(135deg, rgba(245, 158, 11, 0.05) 0%, rgba(217, 119, 6, 0.03) 100%); }
         .table-card.state-occupied { background: linear-gradient(135deg, rgba(249, 115, 22, 0.05) 0%, rgba(234, 88, 12, 0.03) 100%); }
+        .table-card.state-booked { background: linear-gradient(135deg, rgba(217, 119, 6, 0.06) 0%, rgba(180, 83, 9, 0.03) 100%); }
 
         .table-card-icon {
             width: 50px;
@@ -333,6 +392,7 @@ function categoryImage($path)
         .table-card.state-serving .table-card-icon { background: rgba(59, 130, 246, .15); color: #3b82f6; }
         .table-card.state-ready .table-card-icon { background: rgba(245, 158, 11, .15); color: #f59e0b; }
         .table-card.state-occupied .table-card-icon { background: rgba(249, 115, 22, .15); color: #f97316; }
+        .table-card.state-booked .table-card-icon { background: rgba(217, 119, 6, .15); color: #d97706; }
 
         .table-status-pill {
             font-size: 10px;
@@ -352,6 +412,7 @@ function categoryImage($path)
         .table-status-pill.serving { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
         .table-status-pill.ready { background: rgba(245, 158, 11, 0.15); color: #f59e0b; animation: readyPulse 1.6s ease-in-out infinite; }
         .table-status-pill.occupied { background: rgba(249, 115, 22, 0.15); color: #f97316; }
+        .table-status-pill.booked { background: rgba(217, 119, 6, 0.15); color: #b45309; }
 
         .table-card:hover .table-status-pill { transform: none; }
 
@@ -430,12 +491,14 @@ function categoryImage($path)
             color: #334155;
         }
 
+        .btn-outline-purple,
         .table-card-actions .btn.btn-outline-purple {
             background: #faf5ff;
             border-color: #e9d5ff;
             color: #7c3aed;
         }
 
+        .btn-outline-purple:hover,
         .table-card-actions .btn.btn-outline-purple:hover {
             background: #f3e8ff;
             border-color: #d8b4fe;
@@ -619,11 +682,9 @@ function categoryImage($path)
             <div class="col-lg-7 col-xl-8 col-xxl-9">
                 <div class="position-relative">
                     <header class="main-topbar start-0 position-absolute" id="main-topbar">
-                        <a href="dashboard.php" class="navbar-brand">
-                            <div class="logo-lg">
-                                <img src="./assets/main-logo-CWEU2RA-.png" loading="lazy" alt="Logo" height="20" class="mx-auto logo-dark">
-                                <img src="./assets/logo-white-B_ImY8Qx.png" loading="lazy" alt="Logo" height="20" class="mx-auto logo-light">
-                            </div>
+                        <a href="dashboard.php" class="navbar-brand kt-logo kt-logo-topbar">
+                            <span class="kt-logo-badge">KT</span>
+                            <span class="kt-logo-text">POS</span>
                         </a>
 
                         <div class="d-none d-xl-flex align-items-center gap-2 ms-10">
@@ -644,21 +705,14 @@ function categoryImage($path)
                                 <span id="servingIndicatorText">Serving —</span>
                             </div>
 
-                            <span class="py-6px ps-4 pe-6px bg-success-subtle rounded text-success d-none d-md-flex d-lg-none d-xxl-flex align-items-center">
-                                <span class="size-1-5 d-block rounded-circle bg-success me-2"></span>Open Order
-                            </span>
-
+                            
                             <a href="dashboard.php" class="btn h-9 px-3 btn-secondary py-6px d-none d-md-inline-flex align-items-center">
                                 <i class="bi bi-globe pe-2 fs-sm"></i> Dashboard
                             </a>
-
-                            <a href="products.php" class="btn btn-outline-light bg-body-secondary shadow-sm border size-8 btn-icon rounded-1" title="Products">
-                                <i class="ri-box-3-line fs-17"></i>
+                             <a href="products.php" class="btn h-9 px-3 btn-primary py-6px d-none d-md-inline-flex align-items-center">
+                                <i class="ri-box-3-line fs-17"></i> Products
                             </a>
 
-                            <a href="logout.php" class="btn btn-outline-light bg-body-secondary shadow-sm border size-8 btn-icon rounded-1" title="Logout">
-                                <i class="ri-logout-box-r-line fs-17"></i>
-                            </a>
                         </div>
                     </header>
                 </div>
@@ -829,6 +883,7 @@ function categoryImage($path)
                                 <p class="text-muted mb-0 fs-sm" id="selectedTableMeta">New items will link to this table</p>
                             </div>
                             <div class="d-flex gap-1 flex-wrap justify-content-end">
+                                <button type="button" id="bookSelectedTableBtn" class="btn btn-outline-purple btn-sm">Book Table</button>
                                 <button type="button" id="serveSelectedTableBtn" class="btn btn-primary btn-sm">Serve</button>
                                 <button type="button" id="changeTableBtn" class="btn btn-light border btn-sm">Change</button>
                                 <button type="button" id="clearTableBtn" class="btn btn-light border btn-sm">Clear</button>
@@ -871,12 +926,21 @@ function categoryImage($path)
                     <div class="card mb-4">
                         <div class="card-body p-4">
                             <div class="d-flex align-items-center gap-3">
-                                <div class="avatar size-11 bg-primary-subtle text-primary rounded-circle d-flex align-items-center justify-content-center">
-                                    <i class="ri-user-line fs-lg"></i>
+                                <div id="cartCustomerAvatar" class="avatar size-11 bg-primary-subtle text-primary rounded-circle d-flex align-items-center justify-content-center">
+                                    <i id="cartCustomerIcon" class="ri-user-line fs-lg"></i>
                                 </div>
                                 <div>
-                                    <a href="#!" class="fw-medium text-reset d-block">Walk-in Customer</a>
-                                    <p class="text-muted mb-0 fs-sm">Default POS customer</p>
+                                    <a href="#!" id="cartCustomerName" class="fw-medium text-reset d-block">Walk-in Customer</a>
+                                    <p class="text-muted mb-0 fs-sm" id="cartCustomerMeta">Default POS customer</p>
+                                </div>
+                            </div>
+
+                            <div id="walkInCustomerFields" class="row g-2 mt-1">
+                                <div class="col-6">
+                                    <input type="text" id="walkInCustomerName" class="form-control form-control-sm" placeholder="Customer name (optional)">
+                                </div>
+                                <div class="col-6">
+                                    <input type="text" id="walkInCustomerContact" class="form-control form-control-sm" placeholder="Phone (optional)">
                                 </div>
                             </div>
                         </div>
@@ -918,7 +982,7 @@ function categoryImage($path)
                         </div>
                     </div>
 
-                    <div class="mt-4">
+                    <div class="mt-4 mb-4">
                         <label class="form-label" for="cartTableSelect">Link to Table <span class="text-muted fw-normal">(optional)</span></label>
                         <select id="cartTableSelect" class="form-control">
                             <option value="">No table — walk-in order</option>
@@ -930,6 +994,7 @@ function categoryImage($path)
                         </select>
                     </div>
 
+                    <?php /*
                     <div class="mt-4">
                         <label class="form-label">Payment Method</label>
                         <select id="paymentMethod" class="form-control">
@@ -939,9 +1004,11 @@ function categoryImage($path)
                             <option value="Bank Transfer">Bank Transfer</option>
                         </select>
                     </div>
+                    */ ?>
+                    <input type="hidden" id="paymentMethod" value="Cash">
 
-                    <button type="button" id="checkoutBtn" class="btn btn-primary w-100 mt-auto">
-                        Process Payment
+                    <button type="button" id="checkoutBtn" class="btn btn-primary w-100 mt-auto mt-4">
+                        Process Order
                     </button>
                 </div>
             </div>
@@ -1013,6 +1080,7 @@ function categoryImage($path)
                         <div class="d-flex flex-wrap gap-2 justify-content-lg-end">
                             <button type="button" class="tables-filter-chip active" data-table-filter="all">All</button>
                             <button type="button" class="tables-filter-chip" data-table-filter="free">Free</button>
+                            <button type="button" class="tables-filter-chip" data-table-filter="booked">Booked</button>
                             <button type="button" class="tables-filter-chip" data-table-filter="reserved">Reserved</button>
                             <button type="button" class="tables-filter-chip" data-table-filter="serving">Serving</button>
                             <button type="button" class="tables-filter-chip" data-table-filter="ready">Ready</button>
@@ -1059,15 +1127,32 @@ function categoryImage($path)
     <div id="reserveModalBackdrop" class="tables-modal-backdrop">
         <div class="reserve-modal">
             <div class="p-4 border-bottom">
-                <h6 class="mb-1">Reserve Table</h6>
+                <h6 class="mb-1">Book Table</h6>
                 <p class="text-muted mb-0 fs-sm" id="reserveModalTableName">—</p>
             </div>
             <div class="p-4">
-                <label class="form-label" for="reserveGuestName">Guest Name</label>
-                <input type="text" id="reserveGuestName" class="form-control" placeholder="Who is this reservation for?">
+                <div class="mb-3">
+                    <label class="form-label" for="reserveGuestName">Customer Name</label>
+                    <input type="text" id="reserveGuestName" class="form-control" placeholder="Who is this booking for?">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="reserveGuestContact">Contact <span class="text-muted fw-normal">(optional)</span></label>
+                    <input type="text" id="reserveGuestContact" class="form-control" placeholder="Phone number">
+                </div>
+                <div class="mb-1">
+                    <label class="form-label" for="reservePackageSelect">Package</label>
+                    <select id="reservePackageSelect" class="form-control">
+                        <option value="">Select package</option>
+                        <?php foreach ($activePackages as $package): ?>
+                            <option value="<?php echo (int) $package["id"]; ?>">
+                                <?php echo e($package["name"]); ?> — GHS <?php echo number_format((float) $package["price"], 2); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
                 <input type="hidden" id="reserveTableId">
                 <div class="d-flex gap-2 mt-4">
-                    <button type="button" id="confirmReserveBtn" class="btn btn-primary flex-fill">Confirm Reservation</button>
+                    <button type="button" id="confirmReserveBtn" class="btn btn-primary flex-fill">Book Table &amp; Create Sale</button>
                     <button type="button" id="cancelReserveModalBtn" class="btn btn-light border">Cancel</button>
                 </div>
             </div>

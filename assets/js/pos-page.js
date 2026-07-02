@@ -46,6 +46,13 @@ async function postJson(url, payload) {
 }
 
 function addToCart(product) {
+    const selectedTable = getSelectedTableRecord();
+
+    if (selectedTable && !selectedTable.booking_id) {
+        showToast('Book ' + selectedTable.name + ' before adding items to the cart.', 'error');
+        return;
+    }
+
     const existingItem = cart.find(item => Number(item.id) === Number(product.id));
 
     if (existingItem) {
@@ -248,6 +255,10 @@ function syncCartTableSelect() {
 }
 
 function getTableVisualState(table) {
+    if (table.booking_id) {
+        return 'booked';
+    }
+
     if (table.serve_status === 'ready') {
         return 'ready';
     }
@@ -269,6 +280,10 @@ function getTableVisualState(table) {
 
 function getTableStatusLabel(table) {
     const state = getTableVisualState(table);
+
+    if (state === 'booked') {
+        return 'Booked';
+    }
 
     if (state === 'ready') {
         return 'Ready to Serve';
@@ -344,6 +359,7 @@ function updateSelectedTableBanner() {
     const badge = document.getElementById('selectedTableStatusBadge');
     const meta = document.getElementById('selectedTableMeta');
     const serveBtn = document.getElementById('serveSelectedTableBtn');
+    const bookBtn = document.getElementById('bookSelectedTableBtn');
 
     if (!table) {
         return;
@@ -355,8 +371,13 @@ function updateSelectedTableBanner() {
 
     const metaParts = ['New items will link to this table'];
 
-    if (table.reserved_by) {
-        metaParts.unshift('Reserved for ' + table.reserved_by);
+    if (table.booking_id) {
+        metaParts.unshift(
+            'Booked: ' + (table.booking_customer_name || 'Guest') +
+            (table.booking_package_name ? ' · ' + table.booking_package_name : '')
+        );
+    } else {
+        metaParts.unshift('Not booked yet — book this table to serve it');
     }
 
     if (table.serve_status === 'serving') {
@@ -377,7 +398,77 @@ function updateSelectedTableBanner() {
         serveBtn.className = 'btn btn-warning btn-sm';
     }
 
+    // A table can only be served once it has a real booking — same rule as
+    // the Tables modal cards. A free/unbooked table can still be linked to a
+    // plain walk-in sale, but there is nothing to "serve" until it's booked.
+    serveBtn.classList.toggle('d-none', !table.booking_id);
+    bookBtn.classList.toggle('d-none', Boolean(table.booking_id));
+
     updateServingIndicator();
+}
+
+function getWalkInCustomerName() {
+    const input = document.getElementById('walkInCustomerName');
+    return input ? input.value.trim() : '';
+}
+
+function getWalkInCustomerContact() {
+    const input = document.getElementById('walkInCustomerContact');
+    return input ? input.value.trim() : '';
+}
+
+function updateCartCustomerCard() {
+    const avatar = document.getElementById('cartCustomerAvatar');
+    const icon = document.getElementById('cartCustomerIcon');
+    const name = document.getElementById('cartCustomerName');
+    const meta = document.getElementById('cartCustomerMeta');
+    const walkInFields = document.getElementById('walkInCustomerFields');
+
+    if (!avatar || !icon || !name || !meta) {
+        return;
+    }
+
+    const table = getSelectedTableRecord();
+
+    // A typed-in walk-in name/phone only makes sense when there is no table —
+    // once a table is linked, the customer's identity comes from its booking.
+    if (walkInFields) {
+        walkInFields.classList.toggle('d-none', Boolean(table));
+    }
+
+    if (!table) {
+        avatar.className = 'avatar size-11 bg-primary-subtle text-primary rounded-circle d-flex align-items-center justify-content-center';
+        icon.className = 'ri-user-line fs-lg';
+        name.innerText = getWalkInCustomerName() || 'Walk-in Customer';
+        meta.innerText = getWalkInCustomerContact() || 'Default POS customer';
+        return;
+    }
+
+    if (table.booking_id) {
+        avatar.className = 'avatar size-11 bg-warning-subtle text-warning rounded-circle d-flex align-items-center justify-content-center';
+        icon.className = 'ri-user-star-line fs-lg';
+        name.innerText = table.booking_customer_name || 'Guest';
+        meta.innerText = table.name + (table.booking_package_name ? ' · ' + table.booking_package_name : ' · Booked table');
+        return;
+    }
+
+    avatar.className = 'avatar size-11 bg-info-subtle text-info rounded-circle d-flex align-items-center justify-content-center';
+    icon.className = 'ri-table-line fs-lg';
+    name.innerText = 'Walk-in Customer';
+    meta.innerText = 'Linked to ' + table.name;
+}
+
+function updateCheckoutAvailability() {
+    const checkoutBtn = document.getElementById('checkoutBtn');
+    if (!checkoutBtn) {
+        return;
+    }
+
+    const table = getSelectedTableRecord();
+    const blocked = Boolean(table) && !table.booking_id;
+
+    checkoutBtn.disabled = blocked;
+    checkoutBtn.title = blocked ? ('Book ' + table.name + ' before processing this order.') : '';
 }
 
 function setSelectedTable(tableId, tableName) {
@@ -400,6 +491,8 @@ function setSelectedTable(tableId, tableName) {
 
     syncCartTableSelect();
     updateSelectedTableBanner();
+    updateCartCustomerCard();
+    updateCheckoutAvailability();
 
     if (selectedTableId) {
         loadTableOrders(selectedTableId);
@@ -432,6 +525,8 @@ async function loadTables(showLoader) {
         renderTablesGrid();
         refreshCartTableOptions();
         updateSelectedTableBanner();
+        updateCartCustomerCard();
+        updateCheckoutAvailability();
     } catch (error) {
         grid.innerHTML = '<div class="col-12"><div class="alert alert-danger mb-0">Failed to load tables. Run database migrations if this is a fresh setup.</div></div>';
     } finally {
@@ -481,6 +576,10 @@ function renderTablesGrid() {
             return state === 'free';
         }
 
+        if (activeTableFilter === 'booked') {
+            return state === 'booked';
+        }
+
         if (activeTableFilter === 'reserved') {
             return state === 'reserved';
         }
@@ -512,37 +611,38 @@ function renderTablesGrid() {
             cardClasses.push('selected');
         }
 
-        const reservedLine = table.reserved_by
-            ? `<div class="table-meta-line"><i class="ri-user-star-line me-1"></i>Reserved: ${escapeHtml(table.reserved_by)}</div>`
+        const bookedLine = table.booking_id
+            ? `<div class="table-meta-line"><i class="ri-user-star-line me-1"></i>Booked: ${escapeHtml(table.booking_customer_name || 'Guest')}</div>` +
+              (table.booking_package_name ? `<div class="table-meta-line"><i class="ri-gift-line me-1"></i>${escapeHtml(table.booking_package_name)} (${escapeHtml(table.booking_package_tier || '')}) — ${money(table.booking_package_price)}</div>` : '')
             : '';
 
-        const servingLine = table.serve_status !== 'none'
+        const servingLine = table.booking_id && table.serve_status !== 'none'
             ? `<div class="table-meta-line"><i class="ri-restaurant-line me-1"></i>${table.serve_status === 'ready' ? 'Ready to serve' : 'Serving'} · ${escapeHtml(table.serving_username || 'Staff')}</div>`
             : '';
 
-        let serveButtonLabel = 'Serve';
-        let serveButtonClass = 'btn-outline-primary';
-
-        if (table.serve_status !== 'none') {
-            serveButtonLabel = 'Serve Again';
-            serveButtonClass = 'btn-warning';
-        }
-
-        const showReserveButton = table.serve_status === 'none';
+        // A table can only be Served/Add-Drinks once it has a real booking
+        // (package + customer) — same rule as tables.php. Until then the
+        // only action on the card is Reserve, which creates that booking.
+        const showReserveButton = !table.booking_id;
         const reserveButton = !showReserveButton
             ? ''
-            : table.reserved_by
-            ? `<button type="button" class="btn btn-light border btn-sm cancel-reserve-btn table-action-half" data-table-id="${table.id}">Unreserve</button>`
-            : `<button type="button" class="btn btn-outline-purple btn-sm reserve-table-btn table-action-half" data-table-id="${table.id}" data-table-name="${escapeHtml(table.name)}">Reserve</button>`;
+            : `<button type="button" class="btn btn-outline-purple btn-sm reserve-table-btn table-action-full" data-table-id="${table.id}" data-table-name="${escapeHtml(table.name)}">Reserve</button>`;
 
-        const showPrintButton = table.serve_status !== 'none';
+        const showServeButton = Boolean(table.booking_id);
+        const serveButtonLabel = table.serve_status !== 'none' ? 'Add Drinks Again' : 'Add Drinks';
+        const serveButtonClass = table.serve_status !== 'none' ? 'btn-warning' : 'btn-outline-primary';
+        const serveButton = !showServeButton
+            ? ''
+            : `<button type="button" class="btn ${serveButtonClass} btn-sm serve-table-btn table-action-full" data-table-id="${table.id}">${serveButtonLabel}</button>`;
+
+        const showPrintButton = Boolean(table.booking_id) || orderCount > 0;
         const printButton = !showPrintButton
             ? ''
             : `<button type="button" class="btn btn-outline-secondary btn-sm print-table-orders-btn table-action-full" data-table-id="${table.id}" data-table-name="${escapeHtml(table.name)}">Print Receipts</button>`;
 
-        const adminActions = POS_IS_ADMIN ? `
-            <button type="button" class="btn btn-light border btn-sm edit-table-btn table-action-full" data-table-id="${table.id}">Edit Table</button>
-        ` : '';
+        const closeButton = !table.booking_id
+            ? ''
+            : `<button type="button" class="btn btn-success btn-sm close-table-btn table-action-full" data-table-id="${table.id}" data-table-name="${escapeHtml(table.name)}">Close</button>`;
 
         return `
             <div class="col-md-6 col-xl-4 col-xxl-3">
@@ -557,19 +657,17 @@ function renderTablesGrid() {
                         </div>
 
                         <h6 class="mb-1 fw-bold">${escapeHtml(table.name)}</h6>
-                        ${reservedLine}
+                        ${bookedLine}
                         ${servingLine}
                         <div class="table-meta-line">${orderCount} order${orderCount === 1 ? '' : 's'} today</div>
                         <div class="fw-bold text-primary fs-15">${money(totalAmount)}</div>
                         </div>
 
                         <div class="table-card-actions" onclick="event.stopPropagation()">
-                            <div class="table-card-actions-primary">
-                                ${reserveButton}
-                                <button type="button" class="btn ${serveButtonClass} btn-sm serve-table-btn table-action-half" data-table-id="${table.id}">${serveButtonLabel}</button>
-                            </div>
+                            ${reserveButton}
+                            ${serveButton}
                             ${printButton}
-                            ${adminActions}
+                            ${closeButton}
                         </div>
                     </div>
                 </div>
@@ -589,12 +687,6 @@ function renderTablesGrid() {
         });
     });
 
-    grid.querySelectorAll('.cancel-reserve-btn').forEach(button => {
-        button.addEventListener('click', function() {
-            tableAction('cancel_reserve', Number(this.dataset.tableId));
-        });
-    });
-
     grid.querySelectorAll('.serve-table-btn').forEach(button => {
         button.addEventListener('click', function() {
             handleServeAction(Number(this.dataset.tableId));
@@ -607,6 +699,12 @@ function renderTablesGrid() {
             const tableName = this.dataset.tableName || null;
             setSelectedTable(tableId, tableName);
             openOrdersModal(tableId, tableName);
+        });
+    });
+
+    grid.querySelectorAll('.close-table-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            closeTableBooking(Number(this.dataset.tableId), this.dataset.tableName);
         });
     });
 
@@ -667,6 +765,11 @@ async function handleServeAction(tableId) {
         return;
     }
 
+    if (!table.booking_id) {
+        showToast('This table is not booked yet. Book it first to serve it.', 'error');
+        return;
+    }
+
     const ok = await tableAction('serve', tableId);
     if (ok) {
         setSelectedTable(tableId, table.name);
@@ -674,10 +777,53 @@ async function handleServeAction(tableId) {
     }
 }
 
+async function closeTableBooking(tableId, tableName) {
+    const label = tableName || ('Table #' + tableId);
+
+    if (!confirm('Close ' + label + '? This computes the final bill (package + all drinks added) and frees the table.')) {
+        return;
+    }
+
+    try {
+        const result = await postJson(API_TABLES, { action: 'close', id: tableId });
+
+        if (!result.success) {
+            showToast(result.error || 'Unable to close table.', 'error');
+            return;
+        }
+
+        if (result.table) {
+            const index = allTables.findIndex(item => Number(item.id) === Number(result.table.id));
+            if (index >= 0) {
+                allTables[index] = result.table;
+            }
+        }
+
+        await loadTables(false);
+        renderTablesGrid();
+        refreshCartTableOptions();
+
+        if (selectedTableId === tableId) {
+            clearSelectedTable();
+        }
+
+        showToast(result.message || 'Table closed.', 'success');
+
+        if (result.sale_ids && result.sale_ids.length > 0) {
+            const url = 'receipt.php?' + buildQuery({ ids: result.sale_ids.join(',') });
+            openReceiptModalByUrl('Final Table Bill - ' + label, url);
+        }
+    } catch (error) {
+        showToast('Unable to close table.', 'error');
+    }
+}
+
 function openReserveModal(tableId, tableName) {
     document.getElementById('reserveTableId').value = tableId;
     document.getElementById('reserveModalTableName').innerText = tableName;
     document.getElementById('reserveGuestName').value = '';
+    document.getElementById('reserveGuestContact').value = '';
+    document.getElementById('reservePackageSelect').value = '';
     document.getElementById('reserveModalBackdrop').classList.add('show');
     setTimeout(function() {
         document.getElementById('reserveGuestName').focus();
@@ -690,19 +836,67 @@ function closeReserveModal() {
 
 async function confirmReserveTable() {
     const tableId = Number(document.getElementById('reserveTableId').value);
-    const reservedBy = document.getElementById('reserveGuestName').value.trim();
+    const customerName = document.getElementById('reserveGuestName').value.trim();
+    const customerContact = document.getElementById('reserveGuestContact').value.trim();
+    const packageId = Number(document.getElementById('reservePackageSelect').value || 0);
 
-    if (!reservedBy) {
-        showToast('Guest name is required.', 'error');
+    if (!customerName) {
+        showToast('Customer name is required.', 'error');
         return;
     }
 
-    const ok = await tableAction('reserve', tableId, { reserved_by: reservedBy });
-    if (ok) {
+    if (!packageId) {
+        showToast('Please select a package.', 'error');
+        return;
+    }
+
+    const confirmBtn = document.getElementById('confirmReserveBtn');
+    confirmBtn.disabled = true;
+    confirmBtn.innerText = 'Booking...';
+
+    try {
+        const result = await postJson(API_TABLES, {
+            action: 'book',
+            id: tableId,
+            package_id: packageId,
+            customer_name: customerName,
+            customer_contact: customerContact
+        });
+
+        if (!result.success) {
+            showToast(result.error || 'Unable to book table.', 'error');
+            return;
+        }
+
+        if (result.table) {
+            const index = allTables.findIndex(item => Number(item.id) === Number(result.table.id));
+            if (index >= 0) {
+                allTables[index] = result.table;
+            } else {
+                allTables.push(result.table);
+            }
+        }
+
+        await loadTables(false);
+        renderTablesGrid();
+        refreshCartTableOptions();
+
         const table = allTables.find(item => Number(item.id) === tableId);
         const tableName = table ? table.name : document.getElementById('reserveModalTableName').innerText;
+
         setSelectedTable(tableId, tableName);
         closeReserveModal();
+        closeTablesModal();
+        showToast(result.message || 'Table booked.', 'success');
+
+        if (result.sale_id) {
+            openReceiptModal(result.sale_id);
+        }
+    } catch (error) {
+        showToast('Unable to book table.', 'error');
+    } finally {
+        confirmBtn.disabled = false;
+        confirmBtn.innerText = 'Book Table & Create Sale';
     }
 }
 
@@ -954,7 +1148,17 @@ async function openOrdersModal(tableId, tableName) {
             return;
         }
 
-        let html = '<div class="row g-4">';
+        // Everything added to a booked table (the package plus every drink round)
+        // prints and pays as one bill — these cards are just a breakdown of what
+        // makes up that one receipt, not separate receipts.
+        let html = `
+            <div class="alert alert-light border d-flex justify-content-between align-items-center mb-4">
+                <span>${orders.length} order${orders.length === 1 ? '' : 's'} will combine into <strong>one receipt</strong> when printed</span>
+                <strong class="text-primary fs-16">${money(result.grand_total || 0)}</strong>
+            </div>
+        `;
+
+        html += '<div class="row g-4">';
 
         orders.forEach(order => {
             const itemsHtml = (order.items || []).map(item => `
@@ -992,9 +1196,6 @@ async function openOrdersModal(tableId, tableName) {
                                 </div>
                             </div>
                         </div>
-                        <div class="card-footer bg-light">
-                            <button type="button" class="btn btn-sm btn-primary w-100 print-single-receipt" data-receipt-id="${order.id}">Print Receipt</button>
-                        </div>
                     </div>
                 </div>
             `;
@@ -1003,24 +1204,12 @@ async function openOrdersModal(tableId, tableName) {
         html += '</div>';
         html += `
             <div class="border-top mt-4 pt-3 d-flex flex-wrap justify-content-end gap-2">
-                <button type="button" class="btn btn-outline-primary btn-sm" id="printAllReceiptsBottomBtn">
-                    <i class="ri-printer-line me-1"></i> Print All Receipts
+                <button type="button" class="btn btn-primary btn-sm" id="printAllReceiptsBottomBtn">
+                    <i class="ri-printer-line me-1"></i> Print Receipt
                 </button>
             </div>
         `;
         content.innerHTML = html;
-
-        document.querySelectorAll('.print-single-receipt').forEach(btn => {
-            btn.addEventListener('click', function() {
-                const receiptId = Number(this.dataset.receiptId);
-                if (!receiptId) {
-                    return;
-                }
-
-                closeOrdersModal();
-                openReceiptModal(receiptId);
-            });
-        });
 
         const printAllBottomBtn = document.getElementById('printAllReceiptsBottomBtn');
         if (printAllBottomBtn) {
@@ -1037,6 +1226,42 @@ function closeOrdersModal() {
     currentOrdersForPrint = [];
 }
 
+function buildTableReceiptUrl(ids, autoPrint) {
+    const params = { ids: ids.join(','), embedded: '1' };
+
+    if (autoPrint) {
+        params.auto_print = '1';
+    }
+
+    return 'receipt.php?' + buildQuery(params);
+}
+
+function buildTableReceiptTitle(tableLabel, ids) {
+    return ids.length > 1
+        ? 'Table Bill - ' + tableLabel + ' (' + ids.length + ' orders combined)'
+        : 'Receipt Preview - ' + tableLabel;
+}
+
+// Every sale tied to a booked table (the package plus every drink round) is
+// one running bill. Whenever we show a receipt for a booked table, pull in
+// every linked order instead of just the single sale that was just created.
+async function openCombinedTableReceipt(tableId, tableName) {
+    try {
+        const result = await fetchJson(API_TABLE_ORDERS + '?' + buildQuery({ table_id: tableId }));
+        const orders = (result && result.success) ? (result.orders || []) : [];
+        const ids = orders.map(order => Number(order.id)).filter(id => id > 0);
+
+        if (ids.length === 0) {
+            return;
+        }
+
+        const tableLabel = tableName || ('Table #' + tableId);
+        openReceiptModalByUrl(buildTableReceiptTitle(tableLabel, ids), buildTableReceiptUrl(ids, false));
+    } catch (error) {
+        showToast('Unable to load the combined receipt for this table.', 'error');
+    }
+}
+
 function printOrdersFromModal() {
     if (!selectedTableId || currentOrdersForPrint.length === 0) {
         return;
@@ -1050,18 +1275,19 @@ function printOrdersFromModal() {
         return;
     }
 
-    const url = 'receipt.php?' + buildQuery({
-        ids: ids.join(','),
-        auto_print: '1',
-        embedded: '1'
-    });
-
-    const titleText = 'Receipt Preview - ' + ids.length + ' Receipts';
+    const tableLabel = selectedTableName || ('Table #' + selectedTableId);
     closeOrdersModal();
-    openReceiptModalByUrl(titleText, url);
+    openReceiptModalByUrl(buildTableReceiptTitle(tableLabel, ids), buildTableReceiptUrl(ids, true));
 }
 
 async function processCheckout() {
+    const selectedTable = getSelectedTableRecord();
+
+    if (selectedTable && !selectedTable.booking_id) {
+        showToast('Book ' + selectedTable.name + ' before processing this order.', 'error');
+        return;
+    }
+
     if (cart.length === 0) {
         showToast('Cart is empty.', 'error');
         return;
@@ -1082,7 +1308,9 @@ async function processCheckout() {
             items: cart,
             total: total,
             payment_method: document.getElementById('paymentMethod').value,
-            table_id: tableId
+            table_id: tableId,
+            customer_name: tableId ? '' : getWalkInCustomerName(),
+            customer_contact: tableId ? '' : getWalkInCustomerContact()
         });
 
         if (result.success) {
@@ -1094,17 +1322,28 @@ async function processCheckout() {
             if (tableId) {
                 setSelectedTable(tableId, selectedTableName);
                 await loadTables();
-            }
 
-            openReceiptModal(result.sale_id);
+                const orderedTable = allTables.find(item => Number(item.id) === Number(tableId));
+
+                if (orderedTable && orderedTable.booking_id) {
+                    await openCombinedTableReceipt(tableId, orderedTable.name);
+                } else {
+                    openReceiptModal(result.sale_id);
+                }
+            } else {
+                document.getElementById('walkInCustomerName').value = '';
+                document.getElementById('walkInCustomerContact').value = '';
+                updateCartCustomerCard();
+                openReceiptModal(result.sale_id);
+            }
         } else {
             showToast(result.error || 'Unable to save sale.', 'error');
         }
     } catch (error) {
         showToast('System error occurred while processing checkout.', 'error');
     } finally {
-        checkoutBtn.disabled = false;
-        checkoutBtn.innerText = 'Process Payment';
+        checkoutBtn.innerText = 'Process Order';
+        updateCheckoutAvailability();
     }
 }
 
@@ -1174,6 +1413,17 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('clearCartBtn').addEventListener('click', clearCart);
     document.getElementById('checkoutBtn').addEventListener('click', processCheckout);
 
+    const walkInNameInput = document.getElementById('walkInCustomerName');
+    const walkInContactInput = document.getElementById('walkInCustomerContact');
+
+    if (walkInNameInput) {
+        walkInNameInput.addEventListener('input', updateCartCustomerCard);
+    }
+
+    if (walkInContactInput) {
+        walkInContactInput.addEventListener('input', updateCartCustomerCard);
+    }
+
     document.getElementById('openTablesBtn').addEventListener('click', openTablesModal);
     document.getElementById('closeTablesModalBtn').addEventListener('click', closeTablesModal);
     document.getElementById('changeTableBtn').addEventListener('click', openTablesModal);
@@ -1184,6 +1434,15 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         handleServeAction(selectedTableId);
+    });
+
+    document.getElementById('bookSelectedTableBtn').addEventListener('click', function() {
+        if (!selectedTableId) {
+            return;
+        }
+
+        const table = getSelectedTableRecord();
+        openReserveModal(selectedTableId, table ? table.name : selectedTableName);
     });
 
     document.getElementById('confirmReserveBtn').addEventListener('click', confirmReserveTable);
@@ -1298,7 +1557,9 @@ document.addEventListener('DOMContentLoaded', function() {
             const table = allTables.find(item => Number(item.id) === tableId);
 
             if (table) {
-                setSelectedTable(tableId, table.name);
+                // "Add Drinks" (tables.php) and "Serve" (POS card) are the same action:
+                // both open this table's running tab for adding more items.
+                handleServeAction(tableId);
             }
         }
     });
