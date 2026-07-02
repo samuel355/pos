@@ -508,6 +508,15 @@ function clearSelectedTable() {
     setSelectedTable(null, null);
 }
 
+function closeSelectedTableFromCart() {
+    const tableName = selectedTableName;
+    clearSelectedTable();
+
+    if (tableName) {
+        showToast(tableName + ' hidden from cart. Walk-in order mode is active.', 'success');
+    }
+}
+
 async function loadTables(showLoader) {
     const grid = document.getElementById('tablesGrid');
     const loadingMsg = document.getElementById('tablesLoadingMsg');
@@ -1430,7 +1439,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('openTablesBtn').addEventListener('click', openTablesModal);
     document.getElementById('closeTablesModalBtn').addEventListener('click', closeTablesModal);
     document.getElementById('changeTableBtn').addEventListener('click', openTablesModal);
-    document.getElementById('clearTableBtn').addEventListener('click', clearSelectedTable);
+    document.getElementById('clearTableBtn').addEventListener('click', closeSelectedTableFromCart);
     document.getElementById('serveSelectedTableBtn').addEventListener('click', function() {
         if (!selectedTableId) {
             return;

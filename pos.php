@@ -886,7 +886,10 @@ function categoryImage($path)
                                 <button type="button" id="bookSelectedTableBtn" class="btn btn-outline-purple btn-sm">Book Table</button>
                                 <button type="button" id="serveSelectedTableBtn" class="btn btn-primary btn-sm">Serve</button>
                                 <button type="button" id="changeTableBtn" class="btn btn-light border btn-sm">Change</button>
-                                <button type="button" id="clearTableBtn" class="btn btn-light border btn-sm">Clear</button>
+                                <button type="button" id="clearTableBtn" class="btn btn-light border btn-sm" title="Hide table details from this cart only">
+                                    <i class="ri-close-line me-1"></i>
+                                    Close
+                                </button>
                             </div>
                         </div>
                     </div>
